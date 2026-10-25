@@ -1,0 +1,56 @@
+// Historical result fixtures only; no model requests and no demo data.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+const data = await fs.mkdtemp(path.join(os.tmpdir(), 'harness-check-version-'));
+process.env.HARNESS_DATA_DIR = data;
+const { ROOT, createRun, persist } = await import('../lib/store.mjs');
+const { CHECK_SUITE_VERSION, getBrowser, closeBrowser } = await import('../lib/browser.mjs');
+const origin = 'http://127.0.0.1:4378';
+test('historical checks remain visible but cannot count as current verification or permit approval', { timeout: 60000 }, async t => {
+  const legacy = await createRun({ mode: 'engineered' });
+  legacy.usage.calls = 1;
+  legacy.status = 'awaiting_approval';
+  legacy.pendingRevision = legacy.revision;
+  legacy.checks = { revision: legacy.revision, passed: 6, total: 6, results: [], at: new Date().toISOString() };
+  await persist(legacy);
+  const current = await createRun({ mode: 'engineered' });
+  Object.assign(current, { usage: { calls: 1, input: 0, output: 0 }, status: 'completed', checks: { ...legacy.checks, suiteVersion: CHECK_SUITE_VERSION, revision: current.revision } });
+  await persist(current);
+  const oldHarness = await createRun({ mode:'engineered' });
+  Object.assign(oldHarness,{usage:{calls:1,input:0,output:0},status:'completed',checks:{...current.checks,revision:oldHarness.revision}});
+  delete oldHarness.harnessVersion;
+  await persist(oldHarness);
+  let output = '';
+  const wrapper = "await import('./server.mjs'); process.on('message', () => { process.disconnect(); process.emit('SIGTERM'); });";
+  const child = spawn(process.execPath, ['--input-type=module', '--eval', wrapper], { cwd: ROOT, windowsHide: true, stdio: ['ignore','pipe','pipe','ipc'], env: { ...process.env, OPENAI_API_KEY: '', OPENAI_MODEL: '', PORT: '4378', PREVIEW_PORT: '4379' } });
+  child.stdout.on('data', chunk => output += chunk);
+  child.stderr.on('data', chunk => output += chunk);
+  t.after(async () => {
+    await closeBrowser();
+    if (child.exitCode === null) { const exited = new Promise(resolve => child.once('exit', resolve)); child.send('stop'); await exited; }
+    await fs.rm(data, { recursive: true, force: true });
+  });
+  for (let i = 0; i < 100 && !output.includes(`Harness Lab: ${origin}`); i++) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.match(output, /Harness Lab:/);
+  const summary = await (await fetch(origin + '/api/evals')).json();
+  assert.equal(summary.groups.length, 3);
+  assert.equal(summary.groups.filter(g=>g.suiteVersion===CHECK_SUITE_VERSION).length,2,'Different harness versions must not merge');
+  assert.deepEqual(summary.groups.filter(g=>g.suiteVersion===CHECK_SUITE_VERSION).map(g=>g.harnessVersion).sort(),[1,2]);
+  assert.equal(summary.groups.find(g => g.suiteVersion === 'notes-v1').verified, 0);
+  assert.equal(summary.groups.find(g => g.suiteVersion === 'notes-v1').recordedPasses, 1);
+  assert.equal(summary.groups.find(g => g.suiteVersion === CHECK_SUITE_VERSION).verified, 1);
+  const approved = await fetch(`${origin}/api/runs/${legacy.id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Harness-Client': 'local' }, body: '{}' });
+  assert.equal(approved.status, 400);
+  assert.match((await approved.json()).error, /Rerun browser checks/);
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  await page.goto(origin + '/#evals');
+  await page.getByText(/passed historical checks/).waitFor();
+  await page.locator(`.history-row[data-open-run="${legacy.id}"]`).click();
+  assert.match(await page.locator('#checks-summary').innerText(), /older test suite/);
+  assert.equal(await page.locator('#approve-button').isDisabled(), true);
+});

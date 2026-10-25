@@ -1,0 +1,52 @@
+{
+  "revision": "dc9cc0d656af",
+  "at": "2026-10-25T11:22:26.087Z",
+  "passed": 5,
+  "total": 6,
+  "results": [
+    {
+      "name": "Draft survives switching screens",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 495,
+      "screenshot": "/api/runs/037226ec-6786-46c6-9f69-38a41728f9b5/screenshots/1792927343214-0-44c431.png"
+    },
+    {
+      "name": "Draft survives page refresh",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 348,
+      "screenshot": "/api/runs/037226ec-6786-46c6-9f69-38a41728f9b5/screenshots/1792927343706-1-30455d.png"
+    },
+    {
+      "name": "Save persists one complete note",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 471,
+      "screenshot": "/api/runs/037226ec-6786-46c6-9f69-38a41728f9b5/screenshots/1792927344333-2-61c966.png"
+    },
+    {
+      "name": "Saving clears the draft",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 483,
+      "screenshot": "/api/runs/037226ec-6786-46c6-9f69-38a41728f9b5/screenshots/1792927344923-3-45e7f4.png"
+    },
+    {
+      "name": "Existing notes are preserved",
+      "passed": false,
+      "detail": "The patch changed original note content. Preserve existing titles and full text exactly, including original line breaks.",
+      "durationMs": 330,
+      "screenshot": "/api/runs/037226ec-6786-46c6-9f69-38a41728f9b5/screenshots/1792927345420-4-347a9f.png"
+    },
+    {
+      "name": "Distinct notes remain distinct",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 462,
+      "screenshot": "/api/runs/037226ec-6786-46c6-9f69-38a41728f9b5/screenshots/1792927346010-5-fbed1d.png"
+    }
+  ],
+  "scenario": "draft",
+  "screenshot": "/api/runs/037226ec-6786-46c6-9f69-38a41728f9b5/screenshots/1792927346010-5-fbed1d.png"
+}

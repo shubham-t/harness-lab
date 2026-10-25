@@ -1,0 +1,14 @@
+{
+  "id": "da5cf49c-67e0-4e43-9a1b-f24623ad5e94",
+  "originalFailure": "Model API HTTP 502: Provider returned error",
+  "status": "budget_exceeded",
+  "session": 3,
+  "checks": "6/6",
+  "usage": {
+    "input": 87295,
+    "output": 8794,
+    "calls": 11,
+    "unreportedRequests": 1
+  },
+  "restoredCheckpoint": true
+}

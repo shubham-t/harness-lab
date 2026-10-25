@@ -1,0 +1,52 @@
+{
+  "revision": "d04dc6699a60",
+  "at": "2026-10-25T11:22:29.934Z",
+  "passed": 6,
+  "total": 6,
+  "results": [
+    {
+      "name": "Draft survives switching screens",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 358,
+      "screenshot": "/api/runs/3177359d-554a-408c-81b5-f4d2215cecc1/screenshots/1792927346643-0-506c81.png"
+    },
+    {
+      "name": "Draft survives page refresh",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 405,
+      "screenshot": "/api/runs/3177359d-554a-408c-81b5-f4d2215cecc1/screenshots/1792927347199-1-5510a5.png"
+    },
+    {
+      "name": "Save persists one complete note",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 477,
+      "screenshot": "/api/runs/3177359d-554a-408c-81b5-f4d2215cecc1/screenshots/1792927347830-2-f8a7a1.png"
+    },
+    {
+      "name": "Saving clears the draft",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 513,
+      "screenshot": "/api/runs/3177359d-554a-408c-81b5-f4d2215cecc1/screenshots/1792927348509-3-c6adbc.png"
+    },
+    {
+      "name": "Existing notes are preserved",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 577,
+      "screenshot": "/api/runs/3177359d-554a-408c-81b5-f4d2215cecc1/screenshots/1792927349232-4-846d06.png"
+    },
+    {
+      "name": "Distinct notes remain distinct",
+      "passed": true,
+      "detail": "Browser interaction matched the acceptance criterion.",
+      "durationMs": 473,
+      "screenshot": "/api/runs/3177359d-554a-408c-81b5-f4d2215cecc1/screenshots/1792927349868-5-e8d8ff.png"
+    }
+  ],
+  "scenario": "draft",
+  "screenshot": "/api/runs/3177359d-554a-408c-81b5-f4d2215cecc1/screenshots/1792927349868-5-e8d8ff.png"
+}

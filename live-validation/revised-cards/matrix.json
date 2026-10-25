@@ -1,0 +1,128 @@
+[
+  {
+    "trial": 1,
+    "scenario": "draft",
+    "mode": "minimal",
+    "id": "7b1550a9-12fd-4778-a148-312819f26cbd",
+    "status": "budget_exceeded",
+    "checks": "5/6",
+    "usage": {
+      "input": 99456,
+      "output": 4510,
+      "calls": 13
+    },
+    "elapsedMs": 134751,
+    "changedFiles": [
+      "src/storage.js"
+    ],
+    "checkpoints": 0,
+    "gates": 0,
+    "error": null,
+    "controlsAudit": "passed"
+  },
+  {
+    "trial": 1,
+    "scenario": "draft",
+    "mode": "engineered",
+    "id": "cf25feae-cd17-4bfa-a052-d9771d84c848",
+    "status": "awaiting_approval",
+    "checks": "6/6",
+    "usage": {
+      "input": 23463,
+      "output": 8056,
+      "calls": 5
+    },
+    "elapsedMs": 187195,
+    "changedFiles": [
+      "src/storage.js"
+    ],
+    "checkpoints": 3,
+    "gates": 0,
+    "error": null,
+    "controlsAudit": "passed"
+  },
+  {
+    "trial": 1,
+    "scenario": "unicode",
+    "mode": "minimal",
+    "id": "3a4e2825-049a-46a2-9a18-38828ffe12f4",
+    "status": "completed",
+    "checks": "6/6",
+    "usage": {
+      "input": 72576,
+      "output": 3724,
+      "calls": 11
+    },
+    "elapsedMs": 158212,
+    "changedFiles": [
+      "src/storage.js"
+    ],
+    "checkpoints": 0,
+    "gates": 0,
+    "error": null,
+    "controlsAudit": "passed"
+  },
+  {
+    "trial": 1,
+    "scenario": "unicode",
+    "mode": "engineered",
+    "id": "3ae861e2-4243-4869-847f-8a3076098682",
+    "status": "awaiting_approval",
+    "checks": "6/6",
+    "usage": {
+      "input": 31186,
+      "output": 2556,
+      "calls": 5
+    },
+    "elapsedMs": 109500,
+    "changedFiles": [
+      "src/storage.js"
+    ],
+    "checkpoints": 4,
+    "gates": 0,
+    "error": null,
+    "controlsAudit": "passed"
+  },
+  {
+    "trial": 1,
+    "scenario": "longform",
+    "mode": "minimal",
+    "id": "fba0c680-9f8b-421d-b1bb-9358a9ffc298",
+    "status": "completed",
+    "checks": "6/6",
+    "usage": {
+      "input": 101302,
+      "output": 5233,
+      "calls": 12
+    },
+    "elapsedMs": 141200,
+    "changedFiles": [
+      "src/storage.js"
+    ],
+    "checkpoints": 0,
+    "gates": 0,
+    "error": null,
+    "controlsAudit": "passed"
+  },
+  {
+    "trial": 1,
+    "scenario": "longform",
+    "mode": "engineered",
+    "id": "64eed9f8-51fe-4a32-89fb-113b9cb28635",
+    "status": "awaiting_approval",
+    "checks": "6/6",
+    "usage": {
+      "input": 19643,
+      "output": 2108,
+      "calls": 4
+    },
+    "elapsedMs": 72072,
+    "changedFiles": [
+      "src/storage.js"
+    ],
+    "checkpoints": 3,
+    "gates": 0,
+    "error": null,
+    "controlsAudit": "passed"
+  }
+]
