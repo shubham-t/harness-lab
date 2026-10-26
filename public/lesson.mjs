@@ -18,7 +18,9 @@ export function outcome(run, suiteVersion) {
   else if (run.status === 'completed') { explanation = run.features?.verification ? 'The harness required verification before this run completed.' : 'The model declared completion. The harness allowed application without requiring passing acceptance evidence.'; next = current ? 'Inspect any failed check, then try the published app. Passing checks cover only the tested behaviors.' : 'Click Evaluate outcome to measure the actual patch; application alone does not prove it works.'; }
   else if (run.status === 'paused') { explanation = run.features?.memory ? 'Files remain and saved observations can be handed to a fresh conversation.' : 'Files remain, but no saved progress handoff will be supplied to a fresh conversation.'; next = 'Inspect Memory, then use New session to see what information is carried forward.'; }
   else { explanation = 'Execution stopped before successful completion. A working partial patch and a completed run are different outcomes.'; next = 'Inspect the stopping event and evaluate the source. Keep the failure visible.'; }
-  return { source, current, required, publication, explanation, next, approval: run.features?.permissions ? 'Human approval required' : 'No human approval required' };
+  const stoppingEvent = (run.events || []).findLast(e => run.status === 'budget_exceeded' ? e.kind === 'budget' : e.kind === 'error');
+  const stopReason = ['failed','budget_exceeded','interrupted'].includes(run.status) ? String(stoppingEvent?.detail || '').slice(0, 600) : '';
+  return { source, current, required, publication, explanation, next, stopReason, approval: run.features?.permissions ? 'Human approval required' : 'No human approval required' };
 }
 export function comparableRuns(run, runs) {
   const mode = preset(run);

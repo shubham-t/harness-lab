@@ -16,6 +16,8 @@ test('explanation separates passing source, required controls and application', 
   assert.equal(partial.source,'6/6 checks passed');
   assert.equal(partial.publication,'Not applied');
   assert.match(partial.explanation,/before successful completion/);
+  const failed=outcome({...minimal,checks,status:'failed',events:[{kind:'error',detail:'The model request timed out after 120 seconds.'}]},'current');
+  assert.equal(failed.source,'6/6 checks passed');assert.match(failed.stopReason,/timed out/);assert.equal(failed.publication,'Not applied');
 });
 test('unmeasured and stale results never appear as a current success', () => {
   assert.equal(outcome(minimal,'current').source,'Not measured yet');

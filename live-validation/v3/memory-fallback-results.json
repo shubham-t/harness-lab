@@ -1,0 +1,30 @@
+[
+  {
+    "id": "7bc9ac11-409e-4619-a6e3-b438e3a88647",
+    "mode": "minimal",
+    "pausedAfterEdit": true,
+    "session": 2,
+    "status": "budget_exceeded",
+    "checks": "3/6",
+    "usage": {
+      "input": 47229,
+      "output": 14797,
+      "calls": 24,
+      "unreportedRequests": 1
+    }
+  },
+  {
+    "id": "c599c57b-277a-43f0-8d5e-77111463737b",
+    "mode": "engineered",
+    "pausedAfterEdit": true,
+    "session": 2,
+    "status": "budget_exceeded",
+    "checks": "6/6",
+    "usage": {
+      "input": 82279,
+      "output": 6806,
+      "calls": 23,
+      "unreportedRequests": 1
+    }
+  }
+]

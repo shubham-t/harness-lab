@@ -1,0 +1,37 @@
+[
+  {
+    "id": "e25d301f-60f1-46a2-aadf-93f595e3221c",
+    "mode": "minimal",
+    "model": "cohere/north-mini-code:free",
+    "status": "completed",
+    "checks": "6/6",
+    "usage": {
+      "input": 66057,
+      "output": 3922,
+      "calls": 20
+    },
+    "elapsedMs": 73080,
+    "appliedRevision": "635ccedbf324",
+    "filesChanged": [
+      "src/app.js",
+      "src/storage.js"
+    ]
+  },
+  {
+    "id": "0b75acc7-f595-4277-a1ce-082f685acff0",
+    "mode": "engineered",
+    "model": "cohere/north-mini-code:free",
+    "status": "awaiting_approval",
+    "checks": "6/6",
+    "usage": {
+      "input": 42468,
+      "output": 2132,
+      "calls": 13
+    },
+    "elapsedMs": 89012,
+    "appliedRevision": null,
+    "filesChanged": [
+      "src/storage.js"
+    ]
+  }
+]

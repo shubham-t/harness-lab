@@ -1,5 +1,7 @@
 # One-hour presenter runbook
 
+For the live segment, keep [the twenty-minute cue card](DEMO-CUE-CARD.md) open. It maps each screen action to a plain-language sentence and the specific concept being demonstrated.
+
 ## Timing
 
 | Minutes | Segment |

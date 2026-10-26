@@ -9,7 +9,7 @@ For continuation work, first read [current project status](docs/PROJECT-STATUS.m
 - Node.js 22 or newer. Install with `npm ci`, then `npx playwright install chromium`.
 - `npm start` serves the dashboard on 127.0.0.1:4318 and the application preview on 4319.
 - `npm run doctor` checks local readiness without calling a model.
-- `npm test` runs isolated automated tests. Run one test command at a time because integration tests reserve fixed ports.
+- `npm test` runs isolated automated tests sequentially. Run one test command at a time with live rehearsals idle; integration tests reserve fixed ports and launch real Chromium processes.
 - `node scripts/evaluate.mjs --trials 1 --scenarios draft,unicode,longform` makes six real model trials against the running server. This consumes provider quota. Use only when live testing is requested.
 
 ## Design invariants
@@ -41,5 +41,7 @@ The deliberately buggy `fixtures/notes` is the starting point, not a defect to f
 - `docs/`: operator and developer documentation.
 
 Harness v3 freezes compact memory on session reset. Keep budgets equal and retain full checkpoints as evidence. Publication must remain atomic; a later logging failure must not falsely imply that applied files were rolled back. Preserve the manifest recovery and fault-injection tests.
+
+Terminal run status can precede release of the runner lock. Rehearsal scripts use `evaluateStoppedRun` for bounded retries of that exact busy conflict; never swallow actual browser-check errors or treat a retry as another model trial.
 
 Keep this file short. Put detailed decisions in linked documents. Update the guide, deck and evidence notes when terminology or behavior changes. Do not commit `.env`, runtime API histories, node_modules, build caches or temporary logs.

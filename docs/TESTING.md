@@ -1,10 +1,10 @@
 # Testing and evidence
 
-Read [Project status](PROJECT-STATUS.md) for the latest evidence snapshot and unresolved test stability concern.
+Read [Project status](PROJECT-STATUS.md) for the latest evidence snapshot and remaining environment-specific checks.
 
-Run `npm run doctor`, then `npm test`. On Windows PowerShell use `npm.cmd` if execution policy prevents npm.ps1. Run only one test command at a time.
+Run `npm run doctor`, then `npm test`. On Windows PowerShell use `npm.cmd` if execution policy prevents npm.ps1. Run only one test command at a time, with live rehearsals idle. The npm command runs test files sequentially so their separate Chromium processes do not compete with each other on presentation laptops. Acceptance assertions and timeout limits remain unchanged.
 
-The current full suite has 78 passing tests; doctor has 16 passing checks. It covers pure anatomy mapping, provider parsing, tool access, actual HTTP adapters, real filesystem/browser behavior, revision-bound approval, exports, fresh sessions, abrupt restart, eval grouping and responsive dashboard controls.
+The current full suite has 80 passing tests; doctor has 16 passing checks. It covers pure anatomy mapping, provider parsing, tool access, actual HTTP adapters, real filesystem/browser behavior, revision-bound approval, exports, fresh sessions, abrupt restart, eval grouping, evaluation-lock timing and responsive dashboard controls.
 
 Tests use isolated temporary data directories and explicit test-only HTTP providers. They never populate the demo history. The test repair exists only inside test code. A passing test suite proves implementation behavior under those inputs; it does not prove a live model will fix the bug.
 
@@ -22,11 +22,12 @@ For memory, pause after a real edit, inspect Memory, and choose New session. Che
 
 ## Recorded evidence
 
-- [Current card redesign and live results](../live-validation/revised-cards/RESULTS.md)
+- [Current v3 live results and fixes](../live-validation/v3/RESULTS.md)
+- [Earlier v2 card redesign and live results](../live-validation/revised-cards/RESULTS.md)
 - [Earlier harness trials](../live-validation/RESULTS.md)
 - [Validation details](../VALIDATION.md)
 
-The six current scenario trials are individual samples, not an experiment large enough to claim a reliability percentage. The draft Minimal trial changed existing note text and exhausted its budget. Two other Minimal trials succeeded. All three Engineered trials passed and waited for approval. Both interrupted memory trials retained a passing patch but failed to complete within the budget; Engineered also saw an HTTP 502 before recovery.
+The six v2 scenario trials are individual samples, not an experiment large enough to claim a reliability percentage. The draft Minimal trial changed existing note text and exhausted its budget. Two other Minimal trials succeeded. All three Engineered trials passed and waited for approval. Both v2 interrupted memory trials retained a passing patch but failed to complete within the budget; Engineered also saw an HTTP 502 before recovery. The newer v3 report separately records a successful pair, provider failures and two fallback memory budget stops.
 
 No live model happened to attempt an unauthorized host write in these trials. The separate permission probe and deterministic tests establish rejection of that action. Do not describe the probe as model misconduct. Similarly, successful Engineered trials establish verification and approval operation, not a live failed-check repair loop unless such an event actually appears in the trace.
 

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "2772de84-ae38-465f-b315-59e1bf956697",
+    "mode": "minimal",
+    "status": "failed",
+    "checks": "6/6",
+    "usage": {
+      "input": 59769,
+      "output": 2897,
+      "calls": 11,
+      "unreportedRequests": 1
+    },
+    "error": [
+      {
+        "title": "Real run stopped",
+        "detail": "The model request timed out after 120 seconds."
+      }
+    ],
+    "files": [
+      "src/storage.js"
+    ]
+  },
+  {
+    "id": "4c4fe064-a796-4998-b816-dc1cca8c1d22",
+    "mode": "engineered",
+    "status": "failed",
+    "checks": "4/6",
+    "usage": {
+      "input": 1775,
+      "output": 116,
+      "calls": 2,
+      "unreportedRequests": 1
+    },
+    "error": [
+      {
+        "title": "Real run stopped",
+        "detail": "Model API HTTP 502: Provider returned error"
+      }
+    ],
+    "files": []
+  }
+]

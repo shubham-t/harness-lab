@@ -1,4 +1,5 @@
 // Runs real model trials against the running local server. This incurs API usage.
+import { evaluateStoppedRun } from './evaluation-client.mjs';
 const args = process.argv.slice(2);
 const value = (name, fallback) => { const i = args.indexOf(name); return i < 0 ? fallback : args[i + 1]; };
 const trials = Number(value('--trials', '1'));
@@ -29,7 +30,7 @@ for (const scenario of scenarios) {
       } while (['running', 'pausing'].includes(latest.status) || latest.activeSessionStartedAt);
       // Independent presenter measurement after the agent stops. It cannot
       // influence that run's decisions or turn a failed run into a completion.
-      latest = await api(`/api/runs/${run.id}/checks`, {});
+      latest = await evaluateStoppedRun(api, run.id);
       console.log(JSON.stringify({ trial, scenario, mode, id: run.id, status: latest.status, checks: latest.checks ? `${latest.checks.passed}/${latest.checks.total}` : 'unavailable', usage: latest.usage, elapsedMs: latest.elapsedMs }));
     }
   }

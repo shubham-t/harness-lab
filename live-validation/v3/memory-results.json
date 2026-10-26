@@ -1,0 +1,16 @@
+[
+  {
+    "id": "fed6ccda-9774-41f5-8738-ee22d84ea304",
+    "mode": "engineered",
+    "pausedAfterEdit": true,
+    "session": 2,
+    "status": "failed",
+    "checks": "6/6",
+    "usage": {
+      "input": 6387,
+      "output": 1450,
+      "calls": 3,
+      "unreportedRequests": 1
+    }
+  }
+]

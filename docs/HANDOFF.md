@@ -21,7 +21,7 @@ Do not manufacture a contrast, add simulated execution, prewrite a repair or wea
 1. [Agent instructions](../AGENTS.md) and [README](../README.md).
 2. [Operations](OPERATIONS.md), [architecture](ARCHITECTURE.md) and [testing](TESTING.md).
 3. [Presenter guide](PRESENTER.md) and [demo walkthrough](../ANATOMY-DEMO.md).
-4. [Validation record](../VALIDATION.md) and [current real-run evidence](../live-validation/revised-cards/RESULTS.md).
+4. [Validation record](../VALIDATION.md), [current v3 evidence](../live-validation/v3/RESULTS.md) and [demo cue card](DEMO-CUE-CARD.md).
 
 ## Set up this machine
 
@@ -29,7 +29,7 @@ Do not manufacture a contrast, add simulated execution, prewrite a repair or wea
 2. Check Git and Node.js. Node 22+ is required; Node 24 was tested. Install project dependencies with `npm ci`, then run `npx playwright install chromium`. Use `npm.cmd` and `npx.cmd` on Windows if PowerShell execution policy blocks the scripts. Adapt commands to the actual operating system.
 3. If organizational proxy, certificate or installation policy blocks setup, explain the exact blocker and use approved configuration. Do not disable security controls or TLS verification.
 4. Create `.env` from `.env.example` if needed, without overwriting existing settings or credentials. Set `HARNESS_DATA_DIR` to the absolute path of this checkout's `.data` directory. This makes local persistence explicit instead of using the original development-folder default. Keep ports 4318 and 4319 unless occupied; do not stop unrelated processes.
-5. Run `npm run doctor` and `npm test`, one test command at a time. The v3 update passed 16 readiness checks and 78 tests on Windows. Earlier versions also passed Linux CI; consult PROJECT-STATUS.md for the latest tested revision. The historical intermittent completion failure led to tested persistence/publication fixes, but its original OS error was not retained. Investigate any recurrence rather than repeatedly retrying until green.
+5. Run `npm run doctor` and `npm test`, one test command at a time, with live rehearsals idle. The v3 update passed 16 readiness checks and 80 tests on Windows. The npm command runs test files sequentially to avoid competing Chromium processes. Consult PROJECT-STATUS.md for the latest CI revision. The historical intermittent completion failure led to tested persistence/publication fixes, but its original OS error was not retained. Investigate any recurrence rather than repeatedly retrying until green.
 6. Start with `npm start` and open `http://127.0.0.1:4318`. Check the actual dashboard and phone preview using browser interactions. Confirm the draft bug, the two versus seven enabled cards, keyless browser checks, model setup, evidence dialogs and Focus demo layout.
 
 Complete all keyless work before requesting credentials. Leave the local app running when practical, and provide exact start, stop and restart commands for this laptop.
@@ -38,7 +38,7 @@ Complete all keyless work before requesting credentials. Leave the local app run
 
 Ask the user for provider details only when needed. Have them enter the key directly in the local setup screen or local `.env`; never ask them to paste it into chat. Do not print keys in logs or screenshots. UI-entered keys live in server memory and disappear on restart.
 
-The earlier rehearsal used `https://openrouter.ai/api/v1`, Chat Completions, and `nvidia/nemotron-3.5-super-vl:free`. This is historical evidence, not a guarantee of current availability. Check current availability before recommending that model. An internal endpoint must implement the adapter's tool-calling protocol; a generic chat endpoint is insufficient.
+The latest successful v3 pair used `https://openrouter.ai/api/v1`, Chat Completions, and `cohere/north-mini-code:free`. The earlier `nvidia/nemotron-3.5-super-vl:free` endpoint repeatedly timed out or returned HTTP 502 in this rehearsal. Both are dated observations, not guarantees of current availability. Check the provider catalog and pricing again before selecting a model. An internal endpoint must implement the adapter's tool-calling protocol; a generic chat endpoint is insufficient.
 
 Once the user confirms the connection is ready for live testing:
 
@@ -52,7 +52,7 @@ Do not claim success for unperformed tests. Report provider failures, budget sto
 
 ## Slides and history
 
-Open [the PowerPoint](../presentation/Agent-Harness-Workshop.pptx) directly. It contains 33 slides with speaker notes and real rehearsal screenshots. [Plain-text speaker notes](../presentation/speaker-notes.md) are also available. The optional presentation-authoring runtime is not required to run the app or use the existing deck.
+Open [the PowerPoint](../presentation/Agent-Harness-Workshop.pptx) directly. It contains speaker notes and real rehearsal screenshots, with older and latest evidence separately labeled. [Plain-text speaker notes](../presentation/speaker-notes.md) are also available. The optional presentation-authoring runtime is not required to run the app or use the existing deck.
 
 The repository contains historical exports and screenshots, not the previous laptop's live runtime history or credentials. A fresh checkout starts without those workspaces. Do not import recordings as live runs or describe screenshots as current execution. No private runtime-data migration is needed for setup.
 

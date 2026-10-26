@@ -1,0 +1,37 @@
+[
+  {
+    "id": "e25d301f-60f1-46a2-aadf-93f595e3221c",
+    "mode": "minimal",
+    "status": "completed",
+    "usage": {
+      "input": 66057,
+      "output": 3922,
+      "calls": 20
+    },
+    "elapsedMs": 73080,
+    "checks": "6/6",
+    "independentPublishedBrowserCheck": "passed",
+    "browserErrors": [],
+    "filesChanged": [
+      "src/app.js",
+      "src/storage.js"
+    ]
+  },
+  {
+    "id": "0b75acc7-f595-4277-a1ce-082f685acff0",
+    "mode": "engineered",
+    "status": "completed",
+    "usage": {
+      "input": 42468,
+      "output": 2132,
+      "calls": 13
+    },
+    "elapsedMs": 89012,
+    "checks": "6/6",
+    "independentPublishedBrowserCheck": "passed",
+    "browserErrors": [],
+    "filesChanged": [
+      "src/storage.js"
+    ]
+  }
+]

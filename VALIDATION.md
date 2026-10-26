@@ -4,7 +4,7 @@ For the latest run outcomes, CI revisions and remaining work, see [Project statu
 
 ## Current v3 update · 26 October 2026
 
-**78 automated tests passed; 16 readiness checks passed.** A final focused UI/explanation run passed 13 tests. See [the v3 verification report](live-validation/v3/RESULTS.md) for fault-injection coverage, compact handoff behavior, audience comparison and native PowerPoint inspection. New real-provider testing is underway with the saved connection. The results below describe the earlier v2 baseline and must not be represented as new v3 model outcomes.
+**80 automated tests passed; 16 readiness checks passed.** A final focused UI/explanation run passed 13 tests. See [the v3 verification report](live-validation/v3/RESULTS.md) for fault-injection coverage, compact handoff behavior, audience comparison, the fixed evaluation-lock race and sequential test scheduling. Seven fresh real-provider trials are recorded: the fallback Draft pair completed and both published apps passed separate browser validation; the other runs preserve provider failures and fresh-session budget stops. The results below describe the earlier v2 baseline and must not be represented as new v3 model outcomes.
 
 ## Earlier v2 baseline
 
