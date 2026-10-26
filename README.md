@@ -8,6 +8,8 @@ A local, interactive workshop about agent harness engineering. A real model edit
 
 Moving to another laptop? Give its coding agent [the setup handoff](docs/HANDOFF.md).
 
+For the latest tested state, real-run outcomes, limitations and next work, read [Project status](docs/PROJECT-STATUS.md).
+
 Requires Node.js 22+ and a Chromium browser.
 
 ```powershell

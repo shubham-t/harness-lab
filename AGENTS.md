@@ -2,6 +2,8 @@
 
 This repository is a local teaching application about agent harness engineering. Read [README.md](README.md), [architecture](docs/ARCHITECTURE.md) and [testing](docs/TESTING.md) before changing behavior. The presenter flow is in [ANATOMY-DEMO.md](ANATOMY-DEMO.md).
 
+For continuation work, first read [current project status](docs/PROJECT-STATUS.md): it distinguishes tested behavior, latest real runs, unresolved issues and next priorities. Update it when new evidence or implementation changes alter those conclusions.
+
 ## Commands
 
 - Node.js 22 or newer. Install with `npm ci`, then `npx playwright install chromium`.

@@ -2,6 +2,8 @@
 
 Use this document as the receiving agent's task. Complete local setup and verification, then help the presenter rehearse. Preserve existing checkout changes and configuration.
 
+**Read [Current state and continuation priorities](PROJECT-STATUS.md) first.** It records the latest runs, tested revisions, established behavior, untested areas and remaining improvements. Do not infer readiness from the setup instructions alone.
+
 ## Purpose and behavior
 
 Harness Lab supports a one-hour workshop for mobile software engineers, architects and leaders. The takeaway is that production agents need more than a model and a prompt.

@@ -1,4 +1,6 @@
-# API-free validation
+# Validation record
+
+For the latest run outcomes, CI revisions and remaining work, see [Project status](docs/PROJECT-STATUS.md). This record covers both API-free checks and separately identified live-provider evidence.
 
 Validated on this laptop on **25 October 2026**.
 

@@ -1,5 +1,7 @@
 # Testing and evidence
 
+Read [Project status](PROJECT-STATUS.md) for the latest evidence snapshot and unresolved test stability concern.
+
 Run `npm run doctor`, then `npm test`. On Windows PowerShell use `npm.cmd` if execution policy prevents npm.ps1. Run only one test command at a time.
 
 The current full suite has 66 passing tests. It covers pure anatomy mapping, provider parsing, tool access, actual HTTP adapters, real filesystem/browser behavior, revision-bound approval, exports, fresh sessions, abrupt restart, eval grouping and responsive dashboard controls.
