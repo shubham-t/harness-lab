@@ -11,7 +11,7 @@ function report(ok, description) {
   if (!ok) failures++;
 }
 report(Number(process.versions.node.split('.')[0]) >= 22, `Node ${process.versions.node} (22+ required)`);
-for (const file of ['server.mjs', 'lib/store.mjs', 'lib/provider.mjs', 'lib/runner.mjs', 'lib/browser.mjs', 'public/app.js', 'public/anatomy.mjs', 'scripts/evaluate.mjs']) {
+for (const file of ['server.mjs', 'lib/store.mjs', 'lib/provider.mjs', 'lib/runner.mjs', 'lib/browser.mjs', 'public/app.js', 'public/anatomy.mjs', 'public/lesson.mjs', 'scripts/evaluate.mjs']) {
   const result = spawnSync(process.execPath, ['--check', path.join(ROOT, file)], { encoding: 'utf8', windowsHide: true });
   report(result.status === 0, `Syntax: ${file}`);
   if (result.status !== 0) console.error(result.stderr || result.error?.message);

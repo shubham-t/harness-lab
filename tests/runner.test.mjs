@@ -15,9 +15,28 @@ process.env.OPENAI_MODEL = '';
 process.env.OPENAI_BASE_URL = '';
 const { configureProvider, getPublicConfig } = await import('../lib/provider.mjs');
 const { createRun, filePath, runDir, persist, initStore, runs, publicRun } = await import('../lib/store.mjs');
-const { executeTool, startRun, pauseRun, resumeRun, running, toolsForRun, assembleModelInput } = await import('../lib/runner.mjs');
+const { executeTool, startRun, pauseRun, resumeRun, running, toolsForRun, assembleModelInput, buildHandoff } = await import('../lib/runner.mjs');
 configureProvider({ apiKey: 'unit-only-never-send', model: 'unit-model', baseUrl: 'https://unit.invalid/v1' });
 globalThis.fetch = async () => { throw new Error('Network prohibited in runner unit tests'); };
+
+test('compact handoff retains edits, excludes repeated payloads and freezes prior-session observations', async () => {
+  const run = await createRun({mode:'engineered',provider:getPublicConfig()});
+  run.checkpoints=[{tool:'write_file',revision:run.revision,detail:{written:'src/storage.js'}}, {tool:'run_checks',revision:run.revision,detail:{suiteVersion:'notes-v2',revision:run.revision,origin:'agent',passed:6,total:6,results:[{passed:true,detail:'LARGE_PASSED_TEXT'.repeat(1000)}]}}];
+  for(let i=0;i<20;i++)run.checkpoints.push({tool:'browser_action',revision:run.revision,detail:{text:'LARGE_PAGE_TEXT'.repeat(1000)}});
+  run.sessionHandoff=buildHandoff(run);run.session=2;
+  const frozen=JSON.stringify(run.sessionHandoff);assert.ok(frozen.length<2000);
+  assert.equal(run.sessionHandoff.editedFiles[0].file,'src/storage.js');assert.equal(run.sessionHandoff.checks.passed,6);
+  run.checkpoints.push({tool:'write_file',revision:'new',detail:{written:'src/app.js'}});
+  run.memory='CURRENT_SESSION_NOTE';
+  const input=await assembleModelInput(run);
+  assert.ok(input.sections.memory.includes(frozen));assert.equal(input.sections.memory.includes('CURRENT_SESSION_NOTE'),false);
+  assert.equal(input.sections.memory.includes('LARGE_PAGE_TEXT'),false);
+  assert.equal(input.sections.memory.includes('src/app.js'),false);
+  run.features.verification=false;
+  assert.equal(buildHandoff(run).checks,null,'Verification-disabled handoffs exclude acceptance results');
+  assert.match(input.text,/Remaining model calls: 24 of 24/);
+  const minimal=await createRun({mode:'minimal'});assert.match((await assembleModelInput(minimal)).text,/Remaining model calls: 24 of 24/);
+});
 
 test('fresh sessions restore memory only when enabled, retain files, and account for aborted requests', async t => {
   const observed = [];
@@ -44,7 +63,7 @@ test('fresh sessions restore memory only when enabled, retain files, and account
         assert.equal(run.checkpoints.length, 0);
       }
       // Presenter results must never leak into a verification-disabled prompt.
-      run.checks = { passed: 4, total: 6, marker: 'PRESENTER_ONLY_EVIDENCE' };
+      run.checks = { passed: 4, total: 6, results: [{ name: 'Test-only observation', passed: false, detail: 'PRESENTER_ONLY_EVIDENCE' }] };
       const previousCount = observed.length;
       startRun(run);
       await waitForRequest(previousCount + 1);
@@ -101,7 +120,7 @@ test('project policies and project map are independently enabled inputs',async()
 
 test('legacy configurations retain their original tool access', async () => {
   const run = await createRun({ mode: 'minimal' });
-  assert.equal(run.harnessVersion, 2);
+  assert.equal(run.harnessVersion, 3);
   delete run.harnessVersion;
   assert.ok(toolsForRun(run).some(tool => tool.name === 'run_checks'));
   assert.equal((await executeTool(run, 'save_memory', { content: 'not retained' })).saved, false);

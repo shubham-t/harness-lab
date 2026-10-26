@@ -1,5 +1,6 @@
 'use strict';
 import { COMPONENTS, anatomyState } from './anatomy.mjs';
+import { outcome, comparableRuns, preset } from './lesson.mjs';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -228,7 +229,7 @@ function renderAnatomy(run) {
   const signature = JSON.stringify([run.id,state]);
   if (signature === anatomySignature) return;
   anatomySignature = signature;
-  text('#anatomy-version',state.legacy ? 'Legacy run · earlier harness behavior' : 'Harness v2 · click a component for evidence');
+  text('#anatomy-version',state.legacy ? 'Legacy run · earlier harness behavior' : `Harness v${run.harnessVersion} · click a component for evidence`);
   $('#anatomy-cards').innerHTML = state.cards.map(card => `<button class="anatomy-card ${card.enabled ? 'enabled' : 'limited'} ${card.highlight ? `highlight ${card.state}` : ''}" data-anatomy="${card.id}" aria-label="${escapeHTML(card.name)}: ${escapeHTML(card.badge)}${card.highlight ? '. '+escapeHTML(state.label) : ''}"><span class="anatomy-card-top"><span>${card.number}</span>${svg(card.icon)}<span class="component-mark">${card.enabled ? '✓' : '—'}</span></span><strong>${escapeHTML(card.name)}</strong><span class="anatomy-badge">${escapeHTML(card.badge)}</span>${card.highlight ? `<span class="component-state">${escapeHTML(state.state === 'active' ? 'Active now' : state.state === 'waiting' ? 'Waiting' : state.state === 'blocked' ? 'Blocked' : 'Last action')}</span>` : ''}</button>`).join('');
   $('#anatomy-now').className = `anatomy-now ${state.state}`;
   $('#anatomy-now').innerHTML = `<strong>${escapeHTML(state.label)}</strong><span>${escapeHTML(state.message)}</span>`;
@@ -239,6 +240,21 @@ function showAnatomy(id) {
   if (!card) return;
   openModal(card.name,'HARNESS ANATOMY',`<p>${escapeHTML(card.description)}</p><div class="concept-example"><strong>THIS WORKSPACE · ${escapeHTML(card.badge)}</strong><p>${escapeHTML(card.note)}</p></div>${card.eventIndex>=0 ? `<div class="dialog-actions"><button class="button button-primary" id="component-evidence">Inspect latest recorded action</button></div>` : '<p class="empty-dialog">No action for this component has been recorded yet.</p>'}`);
   $('#component-evidence')?.addEventListener('click',()=>showEvidence(run.events[card.eventIndex]));
+}
+function showLesson() {
+  const run = currentRun(); if (!run) return;
+  const result = outcome(run, appState.checkSuiteVersion);
+  const matches = comparableRuns(run, appState.runs);
+  const rows = candidate => { const r = outcome(candidate, appState.checkSuiteVersion); return [r.source, statuses[candidate.status] || candidate.status, r.required, r.approval, r.publication, `${candidate.usage?.calls || 0} real model calls`]; };
+  openModal('What does this run show?', 'EXPLAIN & COMPARE', `<p class="lesson-lead">${escapeHTML(result.explanation)}</p>${matches.length ? '<details><summary>Explain the selected run</summary>' : ''}<dl class="lesson-results"><div><dt>Does the source pass the checks?</dt><dd>${escapeHTML(result.source)}</dd></div><div><dt>What did completion require?</dt><dd>${escapeHTML(result.required)}</dd></div><div><dt>Was the patch applied?</dt><dd>${escapeHTML(result.publication)}</dd></div></dl>${matches.length ? '</details>' : ''}<p class="lesson-next"><strong>Next:</strong> ${escapeHTML(result.next)}</p><h3>Compare actual runs</h3>${matches.length ? `<label for="compare-run">Other harness · same task, scenario, model, harness version and session count</label><select id="compare-run">${matches.map(r => `<option value="${escapeHTML(r.id)}">${preset(r)} · ${prettyId(r.id)} · ${escapeHTML(statuses[r.status] || r.status)}</option>`).join('')}</select><div id="lesson-comparison"></div><p>Each column is one independent run. This comparison does not establish which component caused the outcome.</p>` : '<p>No matching opposite-preset model run is available yet. Prepare and run the other preset with the same scenario and provider. Unrun workspaces and different models, harness versions or session counts are excluded.</p>'}<p class="lesson-takeaway"><strong>If both fix the bug:</strong> the contrast is still visible in what the harness required before completion and application.</p><div class="dialog-actions"><button class="button button-secondary" id="lesson-refresh">Refresh evidence</button><button class="button button-primary" id="lesson-checks">Show browser evidence</button></div>`);
+  function compare() {
+    const other = matches.find(r => r.id === $('#compare-run').value), pair = preset(run) === 'Minimal' ? [run, other] : [other, run];
+    const values = pair.map(rows), labels = ['Observed checks','Agent status','Completion requirement','Approval requirement','Application','Model requests'];
+    $('#lesson-comparison').innerHTML = `<div class="lesson-table-wrap"><table class="lesson-table"><thead><tr><th>Evidence / control</th>${pair.map(r => `<th>${preset(r)} · ${prettyId(r.id)}</th>`).join('')}</tr></thead><tbody>${labels.map((label,i) => `<tr><th>${label}</th>${values.map(v => `<td>${escapeHTML(v[i])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  }
+  if (matches.length) { compare(); $('#compare-run').addEventListener('change', compare); }
+  $('#lesson-refresh').addEventListener('click', async () => { await refreshState(); showLesson(); });
+  $('#lesson-checks').addEventListener('click', () => { closeModal(); $('.verification-card').scrollIntoView({ behavior:'instant', block:'center' }); });
 }
 function eventIcon(kind) { return {instructions:'file',context:'folder',prompt:'folder',tool:'terminal',tool_result:'terminal',edit:'edit',checks:'checkCircle',verification:'checkCircle',browser:'layout',memory:'layers',permission:'shield',gate:'shield',budget:'clock',model:'sparkles',assistant:'sparkles',run:'play',error:'error',status:'info'}[kind] || 'info'; }
 function renderEvents(events) {
@@ -257,7 +273,7 @@ function renderMemory(run) {
   memorySignature = signature;
   const checkpoints = Array.isArray(run.checkpoints) ? run.checkpoints : [];
   const memory = run.memory;
-  $('#memory-content').innerHTML = `<span class="tiny-label">DURABLE HANDOFF</span><p style="margin-top:10px">${run.features?.memory ? 'A fresh conversation can load this recorded handoff. Inspect the next session’s context event to verify what was actually supplied.' : 'Memory is disabled for this workspace. A new session will not receive a durable handoff through this feature.'}</p>${memory && (typeof memory !== 'object' || Object.keys(memory).length) ? `<div class="memory-block"><pre>${escapeHTML(stringify(memory))}</pre></div>` : '<div class="memory-block"><p>No memory has been recorded yet.</p></div>'}<h3 class="memory-section-title">Checkpoints · ${checkpoints.length}</h3>${checkpoints.length ? checkpoints.map((checkpoint,index) => `<div class="checkpoint"><strong>${escapeHTML(checkpoint.title || `Checkpoint ${index+1}`)}</strong><p>${escapeHTML(stringify(checkpoint))}</p></div>`).join('') : '<p>No checkpoints yet. This list will contain only recorded run data.</p>'}`;
+  $('#memory-content').innerHTML = `<span class="tiny-label">DURABLE HANDOFF</span><p style="margin-top:10px">${run.features?.memory ? 'A fresh conversation can load this recorded handoff. Inspect the next session’s Saved handoff included in request event to verify exactly what was supplied.' : 'Memory is disabled for this workspace. A new session will not receive a durable handoff through this feature.'}</p>${memory && (typeof memory !== 'object' || Object.keys(memory).length) ? `<div class="memory-block"><pre>${escapeHTML(stringify(memory))}</pre></div>` : '<div class="memory-block"><p>No model-written note has been saved. Observed checkpoints below are saved independently.</p></div>'}${run.sessionHandoff ? `<h3 class="memory-section-title">Handoff supplied to session ${run.session}</h3><pre class="evidence-readable">${escapeHTML(JSON.stringify(run.sessionHandoff,null,2))}</pre>` : ''}<h3 class="memory-section-title">Observed checkpoints · ${checkpoints.length}</h3>${checkpoints.length ? checkpoints.map((checkpoint,index) => `<div class="checkpoint"><strong>${escapeHTML(checkpoint.title || `Checkpoint ${index+1}`)}</strong><p>${escapeHTML(stringify(checkpoint))}</p></div>`).join('') : '<p>No checkpoints yet. This list will contain only recorded run data.</p>'}`;
 }
 function renderChecks(run) {
   const signature = JSON.stringify([run.id,run.checks,run.revision,run.pendingRevision,run.status,run.features?.verification,pendingAction,appState.checkNames,appState.checkSuiteVersion]);
@@ -323,6 +339,7 @@ function renderEvals() {
 }
 function openModal(title,kicker,body) {
   modalVersion++;
+  $('#modal').classList.toggle('lesson-modal', title === 'What does this run show?');
   modalOpener = document.activeElement;
   text('#modal-title',title); text('#modal-kicker',kicker);
   $('#modal-body').innerHTML = body;
@@ -388,7 +405,8 @@ function showNewWorkspace() {
 function showEvidence(event) {
   if (!event) return;
   const screenshot = screenshotURL(event.screenshot || event.result?.screenshot);
-  openModal(event.title || 'Run evidence',`${event.kind || 'RECORDED'} EVENT`,`${event.detail ? `<p>${escapeHTML(stringify(event.detail))}</p>` : ''}<div class="evidence-meta"><span>${escapeHTML(date(event.at))}</span>${event.id ? `<span>Event ${escapeHTML(event.id)}</span>` : ''}<span>Run ${escapeHTML(prettyId(currentRun()?.id))}</span></div>${event.instructions ? `<span class="tiny-label">ACTUAL ASSEMBLED INSTRUCTIONS</span><pre class="evidence-pre" style="margin-bottom:20px">${escapeHTML(stringify(event.instructions))}</pre>` : ''}<span class="tiny-label">FULL RECORDED EVENT</span><pre class="evidence-pre">${escapeHTML(JSON.stringify(event,null,2))}</pre>${screenshot ? `<a class="button button-secondary" style="margin-top:17px" href="${escapeHTML(screenshot)}" target="_blank" rel="noopener">${svg('external')}Open recorded screenshot</a><img class="evidence-image" src="${escapeHTML(screenshot)}" alt="Actual browser screenshot recorded with this event" loading="lazy">` : ''}`);
+  const meaning = { instructions:'Instructions & policies: rules for how to do the work.', context:'Context management: facts about this project and its current source.', memory:'Memory & state: recorded progress available beyond one conversation.' }[event.kind];
+  openModal(event.title || 'Run evidence',`${event.kind || 'RECORDED'} EVENT`,`${meaning ? `<p class="lesson-lead">${meaning}</p>` : ''}${event.detail ? `<pre class="evidence-readable">${escapeHTML(stringify(event.detail))}</pre>` : ''}<div class="evidence-meta"><span>${escapeHTML(date(event.at))}</span><span>Run ${escapeHTML(prettyId(currentRun()?.id))}</span></div>${event.instructions ? `<span class="tiny-label">ACTUAL ASSEMBLED INSTRUCTIONS</span><pre class="evidence-pre">${escapeHTML(stringify(event.instructions))}</pre>` : ''}<details><summary>Full recorded event</summary><pre class="evidence-pre">${escapeHTML(JSON.stringify(event,null,2))}</pre></details>${screenshot ? `<a class="button button-secondary" style="margin-top:17px" href="${escapeHTML(screenshot)}" target="_blank" rel="noopener">${svg('external')}Open recorded screenshot</a><img class="evidence-image" src="${escapeHTML(screenshot)}" alt="Actual browser screenshot recorded with this event" loading="lazy">` : ''}`);
 }
 function screenshotURL(value) {
   const run = currentRun();
@@ -435,7 +453,7 @@ async function runAction(action, body = {}, success = '') {
 }
 function showNewSession() {
   const run = currentRun(); if (!run) return;
-  openModal('Continue with a fresh session.','CONTEXT & MEMORY',`<p>A new session starts a fresh model conversation for this same workspace. Source files stay in place. ${run.features?.memory ? 'The harness can load the recorded memory shown below.' : 'Memory is disabled; no durable handoff will be supplied by that feature.'}</p><div class="memory-block"><pre>${escapeHTML(run.memory ? stringify(run.memory) : 'No durable memory has been recorded.')}</pre></div><div class="dialog-callout">${svg('info')}<span>This action resumes real agent execution and makes model requests. Inspect the next context event to see exactly what the new session received.</span></div><div class="dialog-actions"><button class="button button-secondary" data-close-modal>Cancel</button><button class="button button-primary" id="confirm-session">Start new session ${svg('arrowRight')}</button></div>`);
+  openModal('Continue with a fresh session.','CONTEXT & MEMORY',`<p>A new session starts a fresh model conversation for this same workspace. Source files stay in place. ${run.features?.memory ? 'The harness will create a compact handoff from ${run.checkpoints?.length || 0} saved tool observations and any model-written note. It will keep that handoff fixed throughout the next session.' : 'Memory is disabled; no durable handoff will be supplied by that feature.'}</p><div class="memory-block"><pre>${escapeHTML(run.memory ? stringify(run.memory) : 'No model-written note exists. Saved tool observations can still form a handoff when memory is enabled.')}</pre></div><div class="dialog-callout">${svg('info')}<span>This action resumes real agent execution and makes model requests. Inspect the next assembled-instructions or saved-handoff event to see exactly what the new session received.</span></div><div class="dialog-actions"><button class="button button-secondary" data-close-modal>Cancel</button><button class="button button-primary" id="confirm-session">Start new session ${svg('arrowRight')}</button></div>`);
   $('#confirm-session').addEventListener('click',async () => { closeModal(); await runAction('resume',{},'Fresh model session requested.'); });
 }
 function showApprove() {
@@ -464,19 +482,20 @@ async function exportEvidence() {
   } catch(error) { toast(error.message,true); }
 }
 const guideSteps = [
-  ['REPRODUCE','00–05 min','Make the failure visible.','Type a meaningful draft. Choose My notes, then return to Draft. Ask the room what disappeared and what evidence would demonstrate a fix. Run the browser checks to record the baseline.','Prediction: what will a task-only agent try first?'],
-  ['ESTABLISH A BASELINE','05–12 min','Give the model less.','Prepare a fresh Minimal workspace. Point to its seven cards: project support, saved handoff, agent checks and approval are off. Run it, inspect the actual tools and patch, then use Evaluate outcome after it stops. Publication alone is not success.','Observe: which assumptions did the agent make?'],
-  ['ADD CONTEXT & INSTRUCTIONS','12–22 min','Make the task legible.','Prepare a fresh Engineered workspace and start the same task. Open Instructions & policies to inspect the rules, then Context management to inspect the project map. Both can highlight during the same request. These are supplied inputs, not evidence that the model followed the rules.','Discuss: which constraints belong in the harness?'],
-  ['INSPECT THE TOOLS','22–30 min','See the boundary of action.','Open a tool event and inspect the recorded arguments and result. Review the diff. Test the permission boundary using the labelled probe. Separate the model’s request from the server’s enforcement.','Discuss: what must the runtime enforce?'],
-  ['START A FRESH SESSION','30–38 min','Carry the right things forward.','Pause a live run, inspect the Memory tab and start a new session. Inspect the next context event. Compare behavior with a workspace where memory is disabled.','Observe: did the handoff preserve findings and unfinished work?'],
-  ['VERIFY BEHAVIOR','38–46 min','Turn a claim into a check.','Compare Verification inside the Engineered loop with Evaluate outcome outside Minimal. Failed Engineered checks block completion and return evidence for repair. Presenter evaluation can expose a bad Minimal patch after it was already applied. Both can still succeed.','Discuss: what independent checks would your product need?'],
-  ['REVIEW & APPROVE','46–52 min','Make publication a decision.','Inspect the actual before and after source. If the current revision passes all required checks, approve it. Open the published app and try the fixed behavior. If checks fail, keep the failure visible.','Decide: does this evidence justify approving the change?'],
-  ['EVALUATE & DISCUSS','52–60 min','Compare outcomes over anecdotes.','Open Runs & evals. Compare actual checks, model calls and recorded outcomes. Try Unicode or long-form scenarios if time permits. Leave unmeasured cells empty. Discuss what you would measure across many real runs.','Takeaway: define your team’s next small, measurable agent experiment.'],
+  ['CONCEPTS','00–25 min','What surrounds the model?','Use the workshop slides to explain the loop, tools, instructions, context, memory, guardrails and verification. The next five steps occupy the 20-minute live segment.','The model proposes actions. Runtime code executes and checks them.'],
+  ['REPRODUCE','25–27 min','The disappearing draft','Type a draft, switch to My notes and return. The text disappears. Explain that the fix must preserve saving and existing notes too.','Ask: how would we know the repair works?'],
+  ['MINIMAL','27–32 min','Two enabled components','Prepare a fresh Minimal workspace and run it. Point to Agent loop and Tools & sandbox. After it stops, Evaluate outcome. Use Explain & compare to separate source checks, completion requirements and application.','If it succeeds: the model solved this one, but the harness required no acceptance evidence.'],
+  ['ENGINEERED INPUTS','32–37 min','Rules and project facts','Run a fresh Engineered workspace. Open Instructions & policies: preserve existing notes and user text. Open Context management: storage.js and the current revision. Click actual recorded inputs.','Rules describe how to work. Context describes this project.'],
+  ['VERIFICATION & APPROVAL','37–42 min','Evidence before application','Show the actual browser results. Engineered requires passing checks before completion. Review the diff, then approve the isolated copy and test it. If the run fails or reaches a budget, keep that result visible.','Approval is a separate decision from passing tests.'],
+  ['COMPARISON','42–45 min','Compare the recorded outcomes','Use Explain & compare to select the opposite-preset run. Show measured checks, required controls and application side by side. Do not infer reliability from one pair.','Both can solve the bug. Their enforced completion conditions differ.'],
+  ['OPTIONAL MEMORY','Use spare time','What survives a fresh conversation?','Pause a separate run after an edit. Open Memory and start a new session. Files survive both presets; Engineered supplies saved progress. Inspect the exact handoff. If provider latency leaves no time, use labeled rehearsal screenshots.','Restoring progress does not guarantee completion.'],
+  ['DISCUSSION','45–60 min','Bring this back to our apps','Discuss one recurring failure in the team’s bug-fixing work. Identify the missing information, tool, check or approval and how you would evaluate it. Reserve time for questions and provider delays.','Change one control and measure representative tasks.'],
 ];
 function renderGuide() {
   $('#guide-steps').innerHTML = guideSteps.map(([label,minutes,title,body,prompt],index) => `<article class="guide-step"><span class="guide-step-num">${String(index+1).padStart(2,'0')}</span><div class="guide-step-body"><div class="guide-step-meta"><span class="tiny-label">${escapeHTML(label)}</span><span class="guide-step-time">${escapeHTML(minutes)}</span></div><h3>${escapeHTML(title)}</h3><p>${escapeHTML(body)}</p><p class="guide-prompt">${escapeHTML(prompt)}</p></div></article>`).join('');
 }
 function bindEvents() {
+  $('#explain-run').addEventListener('click',showLesson);
   $('#focus-toggle').addEventListener('click',() => { if (currentView !== 'workbench') selectView('workbench'); focusMode = !focusMode; sessionStorage.setItem('harness-focus-mode',String(focusMode)); applyFocusMode(); window.scrollTo({top:0,behavior:'instant'}); });
   $('#focus-proof-button').addEventListener('click',() => $('.verification-card').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',block:'center'}));
   window.addEventListener('resize',applyFocusMode);

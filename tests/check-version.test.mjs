@@ -39,7 +39,7 @@ test('historical checks remain visible but cannot count as current verification 
   const summary = await (await fetch(origin + '/api/evals')).json();
   assert.equal(summary.groups.length, 3);
   assert.equal(summary.groups.filter(g=>g.suiteVersion===CHECK_SUITE_VERSION).length,2,'Different harness versions must not merge');
-  assert.deepEqual(summary.groups.filter(g=>g.suiteVersion===CHECK_SUITE_VERSION).map(g=>g.harnessVersion).sort(),[1,2]);
+  assert.deepEqual(summary.groups.filter(g=>g.suiteVersion===CHECK_SUITE_VERSION).map(g=>g.harnessVersion).sort(),[1,3]);
   assert.equal(summary.groups.find(g => g.suiteVersion === 'notes-v1').verified, 0);
   assert.equal(summary.groups.find(g => g.suiteVersion === 'notes-v1').recordedPasses, 1);
   assert.equal(summary.groups.find(g => g.suiteVersion === CHECK_SUITE_VERSION).verified, 1);

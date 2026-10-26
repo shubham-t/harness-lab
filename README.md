@@ -25,6 +25,8 @@ Open **http://127.0.0.1:4318**. You can also double-click `start.cmd`.
 
 Use **Focus demo** (or press **F** outside an input) for a compact presentation layout. The model connection remains visible. **Browser proof** jumps to the measured acceptance checks. Exit focus to access the full navigation and create another workspace.
 
+Use **Explain & compare** for a plain-language outcome summary and a table of matching Minimal/Engineered runs. It separates source checks, agent status, completion requirements, approval and application. Only actual runs with the same task, scenario, provider, harness version and session count can be paired.
+
 The seven **Harness anatomy** cards match the presentation: Agent loop, Tools & sandbox, Instructions & policies, Context management, Memory & state, Guardrails, and Verification. Orchestration is omitted; the activity log remains part of the demo interface. Blue cards are Enabled and gray cards are Off. Minimal has exactly two enabled cards. An orange outline marks recorded activity, red indicates a block, and the current-action strip explains the consequence. Instructions and context can be highlighted together while their actual contents are included in a model request; each card opens its own recorded payload. Click a card for its meaning and latest evidence. Fast actions remain in the Recent trail. The display never claims to reveal internal model thinking.
 
 On another machine, run `npm install` and `npx playwright install chromium` first. The workbench and application preview use separate loopback ports, 4318 and 4319. No hosted service is required for the UI or browser checks.

@@ -4,7 +4,7 @@ Read [Project status](PROJECT-STATUS.md) for the latest evidence snapshot and un
 
 Run `npm run doctor`, then `npm test`. On Windows PowerShell use `npm.cmd` if execution policy prevents npm.ps1. Run only one test command at a time.
 
-The current full suite has 66 passing tests. It covers pure anatomy mapping, provider parsing, tool access, actual HTTP adapters, real filesystem/browser behavior, revision-bound approval, exports, fresh sessions, abrupt restart, eval grouping and responsive dashboard controls.
+The current full suite has 78 passing tests; doctor has 16 passing checks. It covers pure anatomy mapping, provider parsing, tool access, actual HTTP adapters, real filesystem/browser behavior, revision-bound approval, exports, fresh sessions, abrupt restart, eval grouping and responsive dashboard controls.
 
 Tests use isolated temporary data directories and explicit test-only HTTP providers. They never populate the demo history. The test repair exists only inside test code. A passing test suite proves implementation behavior under those inputs; it does not prove a live model will fix the bug.
 
@@ -29,6 +29,10 @@ For memory, pause after a real edit, inspect Memory, and choose New session. Che
 The six current scenario trials are individual samples, not an experiment large enough to claim a reliability percentage. The draft Minimal trial changed existing note text and exhausted its budget. Two other Minimal trials succeeded. All three Engineered trials passed and waited for approval. Both interrupted memory trials retained a passing patch but failed to complete within the budget; Engineered also saw an HTTP 502 before recovery.
 
 No live model happened to attempt an unauthorized host write in these trials. The separate permission probe and deterministic tests establish rejection of that action. Do not describe the probe as model misconduct. Similarly, successful Engineered trials establish verification and approval operation, not a live failed-check repair loop unless such an event actually appears in the trace.
+
+## Harness v3 verification
+
+See [the v3 report](../live-validation/v3/RESULTS.md). New tests inject transient and permanent disk errors, failed file staging, post-publication logging failures, restart recovery and HTTP approval response behavior. Handoff tests check size, frozen state, edit retention and verification-disabled exclusions. Audience tests distinguish current checks from completion/publication and reject mismatched comparisons. These are deterministic implementation tests, not real-provider rehearsals.
 
 ## Maintenance
 

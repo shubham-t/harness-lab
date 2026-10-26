@@ -26,7 +26,8 @@ Start the app, confirm browser readiness, save/test the real provider, and rehea
 6. During a request, open Instructions & policies and its evidence. Show the existing-notes rule. Open Context management separately and show the storage module map. Rules guide behavior; project information helps locate work.
 7. Show browser verification. Failing checks, if they occur, block completion and return feedback. Passing checks lead to approval, not immediate publication.
 8. Inspect the exact diff and revision, approve, then try the published app.
-9. If time permits, use a separate run for Pause / New session. Show the actual restored checkpoint. Otherwise use the recorded memory screenshot and label it as a previous real trial.
+9. Click **Explain & compare**. Pair the corresponding Minimal/Engineered runs and read the rows: observed checks, agent status, completion requirement, approval requirement and application. If both pass, point to the different requirements rather than claiming Minimal failed.
+10. If time permits, use a separate run for Pause / New session. Show the actual **Saved handoff included in request** event. In v3 the compact handoff stays fixed throughout that fresh session. Otherwise use the recorded memory screenshot and label it as a previous real trial.
 
 ## Useful narration
 

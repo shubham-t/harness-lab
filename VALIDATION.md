@@ -2,6 +2,12 @@
 
 For the latest run outcomes, CI revisions and remaining work, see [Project status](docs/PROJECT-STATUS.md). This record covers both API-free checks and separately identified live-provider evidence.
 
+## Current v3 update · 26 October 2026
+
+**78 automated tests passed; 16 readiness checks passed.** A final focused UI/explanation run passed 13 tests. See [the v3 verification report](live-validation/v3/RESULTS.md) for fault-injection coverage, compact handoff behavior, audience comparison and native PowerPoint inspection. New real-provider testing is underway with the saved connection. The results below describe the earlier v2 baseline and must not be represented as new v3 model outcomes.
+
+## Earlier v2 baseline
+
 Validated on this laptop on **25 October 2026**.
 
 **Full suite: 66 passed, 0 failed, 0 skipped** (`npm.cmd test`, approximately 65 seconds).
@@ -47,7 +53,7 @@ Automated provider tests use mocks or explicitly scripted loopback HTTP endpoint
 5. Create a fresh **Engineered** workspace with the same model. Run it, inspect the diff and checks, approve if appropriate, and try the published app.
 6. Rehearse pause/new session while a request is in progress, then compare the recorded context and memory. A fast run may finish before you pause it.
 
-The final clean-install run passed all 66 tests with no skips, and all 15 readiness checks passed. An earlier run intermittently returned a completion tool result without `accepted` in the Minimal HTTP test. An isolated rerun and the full rerun passed; the cause was not established. The assertion now includes the returned result to make a recurrence diagnosable. This is a remaining test stability concern, not evidence of a model failure.
+The v2 clean-install run passed all 66 tests with no skips, and all 15 readiness checks passed. An earlier run intermittently returned a completion tool result without `accepted` in the Minimal HTTP test. Its original OS error was not retained. The v3 update identified and tested a post-publication persistence-failure path that caused this result shape, and now preserves applied status with an explicit storage warning. The historical trigger remains unproven; retain diagnostics if it recurs.
 
 Actual authentication, tool calling, new input payloads and controls were exercised with `nvidia/nemotron-3.5-super-vl:free` using the revised harness. Other providers and models remain unvalidated. Minimal may still fix the bug: demonstrate the missing enforced checks, approval and saved handoff without promising a predetermined failure.
 
@@ -60,4 +66,4 @@ npm.cmd run doctor
 npm.cmd test
 ```
 
-Run one test command at a time. Tests reserve loopback ports 4328–4329, 4338–4340, 4348–4349, 4358–4360, and 4378–4379, and leave the demo on 4318–4319 untouched.
+Run one test command at a time. Tests reserve loopback ports 4328–4329, 4338–4340, 4348–4349, 4358–4360, 4378–4379, and 4388–4389, and leave the demo on 4318–4319 untouched.

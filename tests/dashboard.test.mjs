@@ -77,6 +77,16 @@ test('dashboard interactions in a real browser without API credentials', { timeo
     assert.equal(await frame.getByTestId('note-title').inputValue(), '', 'Original bug must remain reproducible');
     assert.equal((await state()).runs[0].usage.calls, 0);
   });
+  await t.test('audience explanation separates source results from completion and excludes unrun comparisons', async () => {
+    await page.locator('#explain-run').click();
+    assert.equal(await page.locator('#modal-title').innerText(), 'What does this run show?');
+    assert.match(await page.locator('.lesson-results').innerText(), /Not measured yet/);
+    assert.match(await page.locator('.lesson-results').innerText(), /Passing checks required/);
+    assert.match(await page.locator('.lesson-results').innerText(), /Not applied/);
+    assert.match(await page.locator('#modal-body').innerText(), /No matching opposite-preset/);
+    await page.locator('#lesson-checks').click();
+    assert.equal(await page.locator('#modal').isVisible(), false);
+  });
   await t.test('focus mode keeps the run controls in view on common presentation screens', async () => {
     await page.screenshot({ path: path.join(captures, 'dashboard-desktop.png'), fullPage: true });
     await page.locator('#focus-toggle').click();
@@ -113,7 +123,7 @@ test('dashboard interactions in a real browser without API credentials', { timeo
     await page.getByText('No source changes have been recorded in this workspace.').waitFor();
     await page.keyboard.press('Escape');
     await page.locator('[data-panel="memory"]').click();
-    assert.match(await page.locator('#memory-content').innerText(), /No .*memory|No handoff/i);
+    assert.match(await page.locator('#memory-content').innerText(), /No model-written note/i);
     await page.locator('[data-panel="activity"]').click();
     await page.locator('[data-anatomy="context"]').click();
     assert.equal(await page.locator('#modal-title').innerText(), 'Context management');

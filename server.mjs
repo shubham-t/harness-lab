@@ -1,7 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ROOT, DATA, FILES, runs, runDir, workspace, initStore, createRun, publicRun, persist, event, diff, revision } from './lib/store.mjs';
+import { ROOT, DATA, FILES, runs, runDir, workspace, initStore, createRun, publicRun, persist, event, diff, revision, noteStorageFailure } from './lib/store.mjs';
 import { getBrowser, closeBrowser, runChecks, CHECK_NAMES, CHECK_SUITE_VERSION, previewOrigin } from './lib/browser.mjs';
 import { getPublicConfig, configureProvider, testConnection } from './lib/provider.mjs';
 import { startRun, pauseRun, resumeRun, approveRun, executeTool, running } from './lib/runner.mjs';
@@ -120,14 +120,15 @@ const app = http.createServer(async (req, res) => {
             catch (error) { outcome = { error: error.message }; }
             await event(run, 'permission', 'Protected-file boundary tested', 'An explicitly requested permission probe attempted an out-of-workspace write. This is a test of the boundary, not a model-generated action.', { result: outcome });
           } else return json(res, 404, { error: 'Unknown run action' });
-          await persist(run);
+          try { await persist(run); }
+          catch (error) { if (run.appliedRevision && run.status === 'completed') noteStorageFailure(run, error); else throw error; }
           return json(res, 200, publicRun(run));
         }
       }
       return json(res, 404, { error: 'API route not found' });
     }
     if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
-    const assets = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/anatomy.mjs': 'anatomy.mjs', '/styles.css': 'styles.css' };
+    const assets = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/anatomy.mjs': 'anatomy.mjs', '/lesson.mjs': 'lesson.mjs', '/styles.css': 'styles.css' };
     if (assets[pathname]) return await file(res, path.join(ROOT, 'public', assets[pathname]));
     if (pathname === '/favicon.ico') { res.writeHead(204); return res.end(); }
     return json(res, 404, { error: 'Not found' });

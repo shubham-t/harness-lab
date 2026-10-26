@@ -12,6 +12,7 @@ Harness Lab runs on one laptop. The browser dashboard controls a Node server. Th
 | `lib/runner.mjs` | Context assembly, actual model/tool loop, feature-dependent tools, checkpoints, budgets, completion and approval |
 | `lib/browser.mjs` | Playwright operations and six protected acceptance checks |
 | `public/anatomy.mjs` | Maps recorded events and feature flags to component states; no timed playback or invented stages |
+| `public/lesson.mjs` | Evidence-based audience explanations and compatible-run comparison |
 | `public/app.js` | Polls state, renders cards/evidence, controls run/pause/resume/approval and model setup |
 
 ## Request lifecycle
@@ -30,13 +31,17 @@ Minimal can inspect PROJECT.md manually and can exercise the browser. Turning of
 
 ## Memory and state
 
-Working files survive in both presets. Engineered additionally records observed checkpoints and optionally model-written handoff text. A fresh session clears API conversation history, then restores enabled memory and recent checkpoints. Saved memory does not guarantee task completion: live rehearsals include budget exhaustion and a provider 502.
+Working files survive in both presets. Engineered additionally records observed checkpoints and optionally model-written handoff text. A fresh session clears API conversation history. Harness v3 freezes a compact handoff at session start: latest edited files/revisions, a concise check summary, a bounded model-written note and recent action names. It does not re-insert full browser payloads or current-session checkpoints as prior-session memory. The full checkpoints remain in the audit trail. Older runs retain their earlier prompt policy. Saved memory does not guarantee task completion: live rehearsals include budget exhaustion and a provider 502.
 
 ## Verification and evaluation
 
 The six checks measure draft navigation, refresh, complete saving, clearing the saved draft, original-note preservation and distinct notes. Tests belong to the harness, outside the model-editable fixture. `notes-v2` compares original notes with fixed expected content rather than whatever content the patch happens to provide.
 
 Presenter evaluation can run after a model stops. It does not retroactively enforce Minimal completion and does not undo publication. Verification-disabled model context excludes these results. Evaluation groups separate model, endpoint, protocol, feature configuration, scenario, harness version and test-suite version. A passing patch, a completed run and an approved publication are different outcomes.
+
+## Publication and evidence storage
+
+Publication stages all allowlisted files and a harness-owned revision manifest in a new sibling directory, then renames the complete directory into place. Failed staging leaves no partial published app. Atomic JSON snapshots retry bounded transient rename failures without deleting the previous snapshot. If publication succeeds but later event persistence fails, the UI reports a storage warning while retaining the applied status. On restart the manifest is checked against published-file hashes to recover that fact. This covers process interruption, not a claim of power-loss durability.
 
 ## Data and boundaries
 

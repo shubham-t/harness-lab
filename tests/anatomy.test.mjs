@@ -22,6 +22,8 @@ test('actual runtime events map to components and preserve blocked decisions thr
   assert.deepEqual(componentsForEvent({kind:'prompt'}),[]);
   assert.deepEqual(componentsForEvent({kind:'memory'}),['memory']);
   assert.deepEqual(componentsForEvent({kind:'memory',title:'Paused at a safe tool boundary'}),['loop']);
+  assert.deepEqual(componentsForEvent({kind:'budget'}),['loop']);
+  assert.deepEqual(componentsForEvent({kind:'permission',title:'Protected-file boundary tested'}),['tools']);
   assert.deepEqual(componentsForEvent({kind:'tool',tool:'write_file'}),['tools']);
   const state=anatomyState({...minimal,features:{verification:true},status:'running',events:[{kind:'gate',title:'Completion blocked'},{kind:'tool_result',tool:'request_completion'}]});
   assert.equal(state.state,'blocked');
@@ -29,6 +31,15 @@ test('actual runtime events map to components and preserve blocked decisions thr
   const waiting=anatomyState({...minimal,status:'running',events:[{kind:'model',title:'Calling the configured model'}]});
   assert.equal(waiting.label,'Waiting for model response');
   assert.deepEqual(waiting.cards.filter(c=>c.highlight).map(c=>c.id),['loop']);
+});
+
+test('fresh-session memory highlights actual supplied handoff and opens its own evidence',()=>{
+  const events=[{kind:'memory',content:'Frozen handoff'},{kind:'model',title:'Calling the configured model',suppliedComponents:['memory']}];
+  const state=anatomyState({...minimal,features:{memory:true},status:'running',events});
+  assert.equal(state.cards.find(c=>c.id==='memory').highlight,true);
+  assert.equal(state.cards.find(c=>c.id==='memory').eventIndex,0);
+  const budget=anatomyState({...minimal,status:'budget_exceeded',events:[{kind:'budget'}]});
+  assert.deepEqual(budget.cards.filter(c=>c.highlight).map(c=>c.id),['loop']);
 });
 test('completion and historical cards reflect the actual acceptance policy',()=>{
   assert.match(anatomyState({...minimal,status:'completed'}).message,/No acceptance check or approval/);

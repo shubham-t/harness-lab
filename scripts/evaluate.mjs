@@ -26,7 +26,7 @@ for (const scenario of scenarios) {
         await new Promise(resolve => setTimeout(resolve, 1500));
         latest = await api(`/api/runs/${run.id}`);
         if (Date.now() - began > 15 * 60 * 1000) { await api(`/api/runs/${run.id}/pause`, {}); throw new Error(`Trial ${run.id} exceeded 15 minutes; paused.`); }
-      } while (['running', 'pausing'].includes(latest.status));
+      } while (['running', 'pausing'].includes(latest.status) || latest.activeSessionStartedAt);
       // Independent presenter measurement after the agent stops. It cannot
       // influence that run's decisions or turn a failed run into a completion.
       latest = await api(`/api/runs/${run.id}/checks`, {});

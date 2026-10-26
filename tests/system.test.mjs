@@ -250,7 +250,7 @@ test('isolated HTTP model-tool loop with a test-only loopback provider', { timeo
     const id = await runToStop({ mode: 'minimal' });
     let record = await stopped(id);
     assert.equal(record.status, 'completed');
-    assert.equal(record.harnessVersion, 2);
+    assert.equal(record.harnessVersion, 3);
     assert.equal(record.checks, null);
     assert.equal(record.events.some(item => item.kind === 'verification'), false);
     assert.equal(record.checkpoints.length, 0);

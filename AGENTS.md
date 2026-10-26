@@ -34,10 +34,12 @@ The deliberately buggy `fixtures/notes` is the starting point, not a defect to f
 ## Files and delivery
 
 - `lib/`: store, provider adapters, agent runner and browser checks.
-- `public/`: dashboard and event-derived anatomy cards.
+- `public/`: dashboard, event-derived anatomy cards and evidence-based audience comparison.
 - `tests/`: isolated unit, HTTP and real-browser tests.
 - `live-validation/`: historical evidence, not injected into the demo's live history.
 - `presentation/`: workshop deck, notes and rebuild source.
 - `docs/`: operator and developer documentation.
+
+Harness v3 freezes compact memory on session reset. Keep budgets equal and retain full checkpoints as evidence. Publication must remain atomic; a later logging failure must not falsely imply that applied files were rolled back. Preserve the manifest recovery and fault-injection tests.
 
 Keep this file short. Put detailed decisions in linked documents. Update the guide, deck and evidence notes when terminology or behavior changes. Do not commit `.env`, runtime API histories, node_modules, build caches or temporary logs.
