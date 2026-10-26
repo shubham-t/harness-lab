@@ -6,6 +6,8 @@ A local, interactive workshop about agent harness engineering. A real model edit
 
 ## Start
 
+Moving to another laptop? Give its coding agent [the setup handoff](docs/HANDOFF.md).
+
 Requires Node.js 22+ and a Chromium browser.
 
 ```powershell
