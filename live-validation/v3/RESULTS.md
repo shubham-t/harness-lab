@@ -51,6 +51,7 @@ A full test run while live rehearsals and multiple test Chromium processes were 
 ## Checks performed
 
 - Final full local automated suite with sequential test files: **80 passed, 0 failed, 0 skipped** in 125.123 seconds. The earlier 78-test suite passed before the two evaluation-client regression tests were added.
+- GitHub Actions on Linux passed for code/evidence revision **`b17a89726c137a0aa1a785f1c12a079d589c795d`**: [CI run 40339519642](https://github.com/shubham-t/harness-codex/actions/runs/40339519642). Subsequent handoff-only updates leave that code unchanged.
 - After the comparison layout/session-filter and visible stopping-reason changes: focused dashboard and explanation tests **13 passed**. The actual provider-failure dialog also passed a separate browser inspection with zero observed uncaught errors.
 - Readiness: **16 checks passed**, Node 24.19.0, Chromium 156.0.4314.42.
 - Real browser inspection of the updated UI using existing v2 run records: no observed application errors. Screenshots below show prior real model outcomes in the new interface, not new v3 model activity.

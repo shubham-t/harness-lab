@@ -2,6 +2,10 @@
 
 Use this document as the receiving agent's task. Complete local setup and verification, then help the presenter rehearse. Preserve existing checkout changes and configuration.
 
+## Copy-and-paste prompt for the receiving agent
+
+> Set up Harness Lab from https://github.com/shubham-t/harness-codex on this laptop. Find an existing checkout first; otherwise clone it using my existing GitHub authentication. Read AGENTS.md, docs/PROJECT-STATUS.md and docs/HANDOFF.md before changing anything. Follow the handoff, preserve local work, run doctor and the full tests with live runs idle, and verify the actual dashboard and phone preview. Read live-validation/v3/RESULTS.md for the latest successful runs, provider failures and unfinished memory trials. Keep all execution real; do not prewrite a model repair or manufacture a contrast. Complete keyless setup before asking me to enter credentials locally. Once I authorize real-provider tests, rehearse the same-model Minimal/Engineered pair and verify published copies after review. Keep memory optional and distinguish restored state from successful completion. Update PROJECT-STATUS.md with this machine's tested commit, results, remaining limits and exact start/stop commands. Use docs/DEMO-CUE-CARD.md for rehearsal and presentation/Agent-Harness-Workshop.pptx for the session.
+
 **Read [Current state and continuation priorities](PROJECT-STATUS.md) first.** It records the latest runs, tested revisions, established behavior, untested areas and remaining improvements. Do not infer readiness from the setup instructions alone.
 
 ## Purpose and behavior
