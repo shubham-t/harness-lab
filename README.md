@@ -109,6 +109,12 @@ New runs use **harness version 4**: the Backup screen and `src/export.js`, the t
 
 ## Evaluations
 
+## Build a harness, step by step
+
+Open **http://127.0.0.1:4318/builder.html** for a second page that shows how a harness is built one component at a time: a model alone, then the agent loop, tools and sandbox, instructions, context, verification, memory and finally approval. Every step has the same three panels: the problem, what we add (the growing diagram and a few real lines of the runtime), and proof from a recorded real run: the exact request text with the new part highlighted, the activity list, and the two phones. Nothing on the page is animated or invented; a step without a recording says so.
+
+The recording comes from `node scripts/record-builder.mjs` (real, billable model calls: one model-only request and eight runs, all on the draft scenario with equal budgets). It stops when the approval step is waiting; read the diff, approve it in the dashboard, then run `--phase finish`. The result lives in `live-validation/builder/`. See [the builder design](docs/BUILDER.md).
+
 Run the same configuration several times before claiming a reliability improvement. Three scenario variants cover normal text, Unicode/literal markup, and longer multiline drafts. These are variants of one task, not a broad benchmark.
 
 Every command below makes **real, billable model calls** against the running server. The script refuses to start when no provider is configured. It never approves a proposal.

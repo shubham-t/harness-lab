@@ -22,6 +22,15 @@ These are deterministic implementation tests. None of them is a real-provider re
 
 ## Live tests
 
+## Builder tests
+
+- `tests/builder-runner.test.mjs` (in process, mocked transport): loop-only validation, no tools in either protocol's request, a hallucinated tool call recorded as `tool_error`, the observation event, the budget stop, the Tools card Off and never highlighted, and the comparison and ladder excluding loop-only runs.
+- `tests/builder-system.test.mjs` (server on ports 4438/4439, scripted loopback provider on 4440, real Chromium): the model-only endpoint and its records, loop-only runs over HTTP, separate evaluation groups, `GET /api/builder` and `/builder-assets/`, and the builder files served or a clean 404.
+- `tests/builder-page.test.mjs` (server on ports 4448/4449, no provider, real Chromium): the page derivations on a fixture built from recorded exports, every step rendered, request highlights, activity excerpts, the `Not recorded yet` and screenshot fallbacks, both presentation viewports.
+- `tests/record-builder.test.mjs` (no network, no browser): the recorder's arguments, step plan, key hygiene, both phases against a fake API, and the stop at the approval boundary.
+
+The recording itself (`node scripts/record-builder.mjs`) makes real, billable model calls and is a live test, not part of `npm test`.
+
 With the server running and a real connection configured, every command below makes **real, billable model calls**. The script refuses to start without a configured provider. It never approves a proposal.
 
 ```powershell

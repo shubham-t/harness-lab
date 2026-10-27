@@ -58,6 +58,12 @@ A run may be created with `resetAfterCalls`, an integer from 2 to 23. After that
 
 ## Evaluation
 
+## Builder page and loop-only runs
+
+`public/builder.html` is a separate page (`/builder.html`) that shows how a harness is built one component at a time. It reads one recording of real runs from `GET /api/builder` (the file named by `HARNESS_BUILDER_RECORDING`, by default `live-validation/builder/recording.json`, written by `scripts/record-builder.mjs`) and the recorded phone screenshots from `/builder-assets/<name>.png`. When a recorded run still exists on the server, the page shows live preview and production iframes; otherwise it shows the recorded screenshots. The derivations in `public/builder.mjs` are pure functions over the recording. See [the builder design](BUILDER.md).
+
+Two builder-only runtime pieces support the first steps. `POST /api/model/task-only` makes one real model request with the task and no tools and records it under `<data>/model-only/`; no run or workspace is involved. A run created with `loopOnly: true` (mode minimal, every optional feature off) has no tools at all: each text reply is answered with a recorded `observation` event stating that nothing changed, and the run ends at the shared budget. Both are grouped separately in evaluations and excluded from the comparison and the ladder.
+
 Evaluation groups separate model, endpoint, protocol, feature configuration, scenario, harness version, test-suite version and forced-reset setting. `verified` counts runs whose visible tier passed on the current revision. `heldOutVerified` counts runs whose held-out tier passed in full on the current revision. A passing patch, a completed run and an approved publication are different outcomes.
 
 `scripts/evaluate.mjs` creates runs through the same API, waits for each to stop, then runs presenter evaluation. Its `--ladder` mode runs five rungs per trial and its `--out` summary derives "applied without review" and "claimed without a refresh test" from recorded events only.

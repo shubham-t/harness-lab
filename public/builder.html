@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f6f5ef">
+  <title>Harness Lab · Build a harness</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/builder.css">
+  <script src="/builder.mjs" type="module"></script>
+</head>
+<body class="builder-body">
+  <header class="topbar builder-topbar">
+    <div class="builder-brand-row">
+      <a class="brand" href="#step-0" aria-label="Harness Lab, first step"><span class="brand-mark" aria-hidden="true">h<span>·</span></span><span>Harness<span class="brand-second">Lab</span></span></a>
+      <div class="breadcrumb"><span class="breadcrumb-home">Harness Lab</span><span>/</span><strong>Build a harness, step by step</strong></div>
+    </div>
+    <div class="topbar-actions">
+      <span class="local-badge"><span class="status-light"></span>RECORDED RUNS · NOT LIVE</span>
+      <button class="button button-secondary" id="back" type="button" aria-keyshortcuts="ArrowLeft">Back</button>
+      <button class="button button-primary" id="next" type="button" aria-keyshortcuts="ArrowRight">Next</button>
+    </div>
+  </header>
+  <main class="builder-main">
+    <p class="builder-notice" id="recording-notice" role="status" hidden></p>
+    <div class="page-heading builder-heading">
+      <div>
+        <div class="eyebrow"><span class="eyebrow-line"></span><span id="step-count">STEP 0 OF 7</span></div>
+        <h1 id="step-title">A model alone<span class="title-dot">.</span></h1>
+      </div>
+      <div class="builder-progress" id="progress" role="img" aria-label="Step 0 of 7"></div>
+    </div>
+    <div class="builder-panels">
+      <section class="surface builder-panel panel-problem" id="panel-problem" aria-labelledby="problem-kicker">
+        <span class="panel-kicker" id="problem-kicker">1 · THE PROBLEM</span>
+        <p class="problem-text" id="problem"></p>
+      </section>
+      <section class="surface builder-panel panel-add" id="panel-add" aria-labelledby="add-kicker">
+        <span class="panel-kicker" id="add-kicker">2 · WHAT WE ADD</span>
+        <p class="add-text" id="add-text"></p>
+        <div class="builder-diagram" id="diagram" aria-label="The seven harness components"></div>
+        <p class="builder-legend"><span>Blue · added</span><span>Orange outline · added at this step</span><span>Gray · not yet</span></p>
+        <figure class="code-excerpt" id="code"></figure>
+      </section>
+      <section class="surface builder-panel panel-proof" id="panel-proof" aria-labelledby="proof-kicker" aria-live="polite">
+        <span class="panel-kicker" id="proof-kicker">3 · PROOF IT IS THERE</span>
+        <div id="proof"></div>
+      </section>
+    </div>
+    <section class="surface builder-phones" id="phones" aria-label="Sandbox and production phones"></section>
+  </main>
+  <footer class="global-footer builder-footer"><span>HARNESS LAB</span><span>Every step is a recorded run with its id and date. Nothing here is live.</span><span>Left and right arrow keys move between steps.</span></footer>
+</body>
+</html>

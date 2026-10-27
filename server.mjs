@@ -1,10 +1,11 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ROOT, DATA, FILES, FIXTURE, runs, runDir, workspace, initStore, createRun, publicRun, persist, event, diff, revision, noteStorageFailure } from './lib/store.mjs';
+import { randomUUID } from 'node:crypto';
+import { ROOT, DATA, FILES, FIXTURE, TASK, runs, runDir, workspace, initStore, createRun, publicRun, persist, event, diff, revision, noteStorageFailure, atomicJson } from './lib/store.mjs';
 import { getBrowser, closeBrowser, runChecks, CHECK_NAMES, HELD_OUT_CHECK_NAMES, CHECK_SUITE_VERSION, previewOrigin } from './lib/browser.mjs';
-import { getPublicConfig, configureProvider, testConnection } from './lib/provider.mjs';
-import { startRun, pauseRun, resumeRun, approveRun, executeTool, running } from './lib/runner.mjs';
+import { getPublicConfig, configureProvider, testConnection, callModel } from './lib/provider.mjs';
+import { startRun, pauseRun, resumeRun, approveRun, executeTool, running, MODEL_ONLY_INSTRUCTIONS } from './lib/runner.mjs';
 
 const PORT = Number(process.env.PORT || 4318);
 const PREVIEW_PORT = Number(process.env.PREVIEW_PORT || 4319);
@@ -31,6 +32,10 @@ async function file(res, filename, type) {
   const content = await fs.readFile(filename);
   res.writeHead(200, { 'Content-Type': type || MIME[path.extname(filename)] || 'application/octet-stream' }); res.end(content);
 }
+async function optionalFile(res, filename) {
+  try { return await file(res, filename); }
+  catch (error) { if (error.code === 'ENOENT') return json(res, 404, { error: 'Not found' }); throw error; }
+}
 function requireIdle(run) {
   if (running(run.id) || manualChecks.has(run.id)) throw new Error('This run is busy. Pause it and wait for the current operation to finish.');
 }
@@ -41,8 +46,10 @@ function evaluationSummary() {
     const suiteVersion = run.checks ? run.checks.suiteVersion || 'notes-v1' : 'unassessed';
     const harnessVersion = run.harnessVersion || 1;
     const resetAfterCalls = run.resetAfterCalls ?? null;
-    const key = JSON.stringify([run.provider?.model, run.provider?.baseUrl, run.provider?.protocol, run.features, run.scenario, suiteVersion, harnessVersion, resetAfterCalls]);
-    if (!groups.has(key)) groups.set(key, { mode: run.mode, features: run.features, model: run.provider?.model, scenario: run.scenario, suiteVersion, harnessVersion, resetAfterCalls, trials: 0, verified: 0, heldOutVerified: 0, recordedPasses: 0, failed: 0, inputTokens: 0, outputTokens: 0, unreportedRequests: 0, elapsedMs: 0, runIds: [] });
+    // Loop-only runs are builder evidence: never pooled with Minimal or Engineered.
+    const loopOnly = run.loopOnly === true;
+    const key = JSON.stringify([run.provider?.model, run.provider?.baseUrl, run.provider?.protocol, run.features, run.scenario, suiteVersion, harnessVersion, resetAfterCalls, loopOnly]);
+    if (!groups.has(key)) groups.set(key, { mode: run.mode, features: run.features, loopOnly, model: run.provider?.model, scenario: run.scenario, suiteVersion, harnessVersion, resetAfterCalls, trials: 0, verified: 0, heldOutVerified: 0, recordedPasses: 0, failed: 0, inputTokens: 0, outputTokens: 0, unreportedRequests: 0, elapsedMs: 0, runIds: [] });
     const group = groups.get(key); group.trials++;
     if (run.checks?.revision === run.revision && run.checks.passed === run.checks.total && run.checks.total > 0) {
       group.recordedPasses++;
@@ -54,7 +61,51 @@ function evaluationSummary() {
     group.inputTokens += run.usage.input; group.outputTokens += run.usage.output; group.elapsedMs += run.elapsedMs; group.runIds.push(run.id);
     group.unreportedRequests += run.usage.unreportedRequests || 0;
   }
-  return { groups: [...groups.values()], count: eligible.length, checkSuiteVersion: CHECK_SUITE_VERSION, note: `Only actual model runs. Groups separate scenario, model, provider, harness configuration, harness version, forced-reset setting, and check suite version. Verified counts require visible ${CHECK_SUITE_VERSION} checks on the current source revision; heldOutVerified counts require the presenter-only held-out tier to pass in full on that revision; historical results remain visible. Ready workspaces and manual checks are excluded. Small samples are illustrative, not reliability estimates.` };
+  return { groups: [...groups.values()], count: eligible.length, checkSuiteVersion: CHECK_SUITE_VERSION, note: `Only actual model runs. Groups separate scenario, model, provider, harness configuration, loop-only builder mode, harness version, forced-reset setting, and check suite version. Verified counts require visible ${CHECK_SUITE_VERSION} checks on the current source revision; heldOutVerified counts require the presenter-only held-out tier to pass in full on that revision; historical results remain visible. Ready workspaces and manual checks are excluded. Small samples are illustrative, not reliability estimates.` };
+}
+// Builder step 0: one real model request with the task and no tools. No run,
+// workspace or file is touched; the record never contains the API key.
+const MODEL_ONLY_DIR = path.join(DATA, 'model-only');
+async function modelOnlyRequest() {
+  const configured = getPublicConfig();
+  if (!configured.configured) throw new Error('Configure an API key and model first. No simulated runs are available.');
+  const provider = { model: configured.model, baseUrl: configured.baseUrl, protocol: configured.protocol };
+  const at = new Date().toISOString();
+  // A failed request throws here: HTTP 400 with the provider message and no record.
+  const reply = await callModel({ instructions: MODEL_ONLY_INSTRUCTIONS, history: [{ role: 'user', content: TASK }], tools: [], provider });
+  const record = { id: randomUUID(), at, model: provider.model, baseUrl: provider.baseUrl, protocol: provider.protocol, instructions: MODEL_ONLY_INSTRUCTIONS, task: TASK, text: reply.text, status: reply.status, incompleteReason: reply.incompleteReason ?? null, usage: { input: reply.usage.input, output: reply.usage.output }, usageReported: reply.usageReported };
+  await atomicJson(path.join(MODEL_ONLY_DIR, `${record.id}.json`), record);
+  return record;
+}
+async function modelOnlyRecords() {
+  let names;
+  try { names = await fs.readdir(MODEL_ONLY_DIR); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  const records = [];
+  for (const name of names.filter(item => /^[a-f0-9-]{36}\.json$/.test(item))) {
+    try { records.push(JSON.parse(await fs.readFile(path.join(MODEL_ONLY_DIR, name), 'utf8'))); } catch { /* Skip unreadable records. */ }
+  }
+  return records.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+}
+// The builder page reads one recording of real runs (written by scripts/record-builder.mjs).
+const builderRecordingPath = () => process.env.HARNESS_BUILDER_RECORDING || path.join(ROOT, 'live-validation/builder/recording.json');
+function recordedRunIds(value, ids = new Set()) {
+  if (Array.isArray(value)) value.forEach(item => recordedRunIds(item, ids));
+  else if (value && typeof value === 'object') for (const [key, item] of Object.entries(value)) {
+    if (key === 'runId' && typeof item === 'string') ids.add(item);
+    else if (key !== 'run') recordedRunIds(item, ids);
+  }
+  return ids;
+}
+async function builderRecording() {
+  let raw;
+  try { raw = await fs.readFile(builderRecordingPath(), 'utf8'); }
+  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  const recording = JSON.parse(raw);
+  if (!recording || typeof recording !== 'object' || Array.isArray(recording)) throw new Error('The builder recording is not a JSON object.');
+  const present = {};
+  for (const id of recordedRunIds(recording.steps || {})) if (runs.has(id)) present[id] = true;
+  return { ...recording, present };
 }
 const app = http.createServer(async (req, res) => {
   headers(res);
@@ -77,8 +128,17 @@ const app = http.createServer(async (req, res) => {
         const options = await body(req);
         if (options.source && options.source !== 'live') throw new Error('Only real model runs are supported.');
         const p = getPublicConfig();
-        const run = await createRun({ mode: options.mode, features: options.features, scenario: options.scenario, resetAfterCalls: options.resetAfterCalls, provider: { model: p.model, baseUrl: p.baseUrl, protocol: p.protocol } });
+        const run = await createRun({ mode: options.mode, features: options.features, scenario: options.scenario, resetAfterCalls: options.resetAfterCalls, loopOnly: options.loopOnly, provider: { model: p.model, baseUrl: p.baseUrl, protocol: p.protocol } });
         return json(res, 201, publicRun(run));
+      }
+      if (pathname === '/api/model/task-only' && req.method === 'POST') {
+        await body(req);
+        return json(res, 201, await modelOnlyRequest());
+      }
+      if (pathname === '/api/model-only' && req.method === 'GET') return json(res, 200, { records: await modelOnlyRecords() });
+      if (pathname === '/api/builder' && req.method === 'GET') {
+        const recording = await builderRecording();
+        return recording ? json(res, 200, recording) : json(res, 404, { error: 'No builder recording found.' });
       }
       const match = pathname.match(/^\/api\/runs\/([a-f0-9-]{36})(?:\/(.*))?$/);
       if (match) {
@@ -135,8 +195,14 @@ const app = http.createServer(async (req, res) => {
       return json(res, 404, { error: 'API route not found' });
     }
     if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
-    const assets = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/anatomy.mjs': 'anatomy.mjs', '/lesson.mjs': 'lesson.mjs', '/styles.css': 'styles.css' };
-    if (assets[pathname]) return await file(res, path.join(ROOT, 'public', assets[pathname]));
+    const assets = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/anatomy.mjs': 'anatomy.mjs', '/lesson.mjs': 'lesson.mjs', '/styles.css': 'styles.css', '/builder.html': 'builder.html', '/builder.mjs': 'builder.mjs', '/builder.css': 'builder.css' };
+    // A missing asset (for example a builder file not yet written) is a clean 404.
+    if (assets[pathname]) return await optionalFile(res, path.join(ROOT, 'public', assets[pathname]));
+    if (pathname.startsWith('/builder-assets/')) {
+      const screen = pathname.match(/^\/builder-assets\/([a-z0-9-]+)\.png$/);
+      if (!screen) return json(res, 404, { error: 'Not found' });
+      return await optionalFile(res, path.join(path.dirname(builderRecordingPath()), 'screens', `${screen[1]}.png`));
+    }
     if (pathname === '/favicon.ico') { res.writeHead(204); return res.end(); }
     return json(res, 404, { error: 'Not found' });
   } catch (error) { if (!res.headersSent) json(res, error.code === 'ENOENT' ? 404 : 400, { error: error.message }); else res.end(); }

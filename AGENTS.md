@@ -29,6 +29,7 @@ For continuation work, first read [current project status](docs/PROJECT-STATUS.m
 13. Held-out checks are presenter-only. Never return them to the agent in a tool result, prompt or handoff. `run_checks` and the completion gate use the visible tier only.
 14. Production is the published copy when one exists, otherwise the pristine fixture. Nothing reaches it except through `publish()`.
 15. A forced reset (`resetAfterCalls`) happens at the same call for every preset and is part of the evaluation grouping. Runs from v1 to v3 keep their recorded behavior and labels. No live v4 evidence exists until a real run records it; never pool v2/v3 evidence with v4.
+16. The harness builder page (see [the builder design](docs/BUILDER.md)) shows how a harness is built one component at a time from recorded real runs. Loop-only runs (`loopOnly: true`, no tools) and model-only requests (`POST /api/model/task-only`) are builder evidence: same task text and budgets, never compared with Minimal or Engineered in the dashboard comparison or ladder. The page never animates an invented run; a missing step says so.
 
 ## Verification and evidence
 
@@ -41,7 +42,7 @@ The deliberately buggy `fixtures/notes` is the starting point, not a defect to f
 - `lib/`: store, provider adapters, agent runner and browser checks.
 - `public/`: dashboard, event-derived anatomy cards and evidence-based audience comparison.
 - `tests/`: isolated unit, HTTP and real-browser tests.
-- `live-validation/`: historical v1 to v3 evidence, not injected into the demo's live history. Leave it untouched.
+- `live-validation/`: recorded live evidence, not injected into the demo's live history. `v4/` holds the first v4 ladder and `builder/` the recorded runs behind the builder page (`scripts/record-builder.mjs`). Earlier folders are historical; leave recorded evidence untouched and add new sets in new folders.
 - `presentation/`: workshop deck, generated speaker notes and rebuild source (`build.mjs` with pptxgenjs, `capture-v4.mjs` for dashboard screenshots of recorded runs). Rebuilt for v4 on 27 October 2026; edit notes in `build.mjs`.
 - `docs/`: operator and developer documentation.
 

@@ -17,7 +17,7 @@ export function componentsForEvent(event) {
   if (['instructions','context'].includes(event.kind)) return [event.kind];
   if (event.kind === 'model') return ['loop', ...(event.suppliedComponents || []).filter(id=>['instructions','context','memory'].includes(id))];
   if (event.kind === 'memory') return ['memory'];
-  if (['budget','reset'].includes(event.kind)) return ['loop'];
+  if (['budget','reset','observation'].includes(event.kind)) return ['loop'];
   if (event.kind === 'permission') return ['guardrails'];
   if (['verification','gate'].includes(event.kind)) return ['verification'];
   if (['browser','edit'].includes(event.kind)) return ['tools'];
@@ -29,7 +29,8 @@ export function anatomyState(run) {
   const f = run.features || {}, legacy = (run.harnessVersion || 1) < 2;
   const specs = {
     loop: [true,'Enabled','Model → action → observation'],
-    tools: [true,'Enabled','Real files and browser'],
+    // A loop-only builder run has no tools: the card is Off and never highlights.
+    tools: [!run.loopOnly, run.loopOnly ? 'Off' : 'Enabled', run.loopOnly ? 'No tools: the model can only reply with text' : 'Real files and browser'],
     instructions: [!!f.instructions,f.instructions ? 'Enabled' : 'Off',f.instructions ? 'Project rules supplied with each request' : 'No automatic project policies'],
     context: [!!f.context, f.context ? 'Enabled' : 'Off', f.context ? ((run.harnessVersion || 1) >= 4 ? 'Project map, files, revision and ticket thread supplied' : 'Project map, files and revision supplied') : 'No automatic project briefing'],
     memory: [!!f.memory,f.memory ? 'Handoff enabled' : 'Handoff off',f.memory ? 'Saved progress for new sessions' : 'Files remain; no saved handoff'],

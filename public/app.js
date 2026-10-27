@@ -52,6 +52,8 @@ const concepts = {
   verification: {name:'Verification',icon:'checkCircle',short:'Require observable behavior from a real browser.',description:'A convincing explanation is not proof that the application works. Verification executes behavioral checks in a browser and records what passed, what failed and which source revision was checked. Checks have two tiers: the visible checks the agent can run when this feature is on, and held-out checks that only the presenter runs and the agent never sees.',example:'Run checks before the fix to observe the failing behavior. After the agent edits the source, rerun the same checks and inspect their evidence. Held-out results appear in their own group.'},
   permissions: {name:'Guardrails · approval',icon:'shield',short:'Require approval before publishing to the isolated copy.',description:'The agent works inside an isolated workspace. The server always enforces its tool boundary. With this feature enabled, completion also waits for explicit human approval before publishing the source to this run’s isolated copy.',example:'When this feature is disabled, the agent can publish automatically to its isolated copy. Test permission boundary sends a harmless, explicitly labelled protected-file probe through the tool gate. Inspect the resulting permission event.'},
 };
+// Not an optional feature: shown only for a loop-only builder run, where tools are off.
+const toolsConcept = {name:'Tools & sandbox',icon:'terminal',description:'Tools let the agent read and change files and use a real browser inside its sandbox. A loop-only run has no tools: the model can only reply with text, and nothing in the workspace can change.',example:'This loop-only run was created for the harness builder. Each reply is followed by an observation from the harness; any tool the model requests is rejected and recorded as a tool error.'};
 const statuses = {ready:'Ready to run',running:'Running',pausing:'Pausing',paused:'Paused',interrupted:'Interrupted',awaiting_approval:'Awaiting approval',completed:'Completed',failed:'Failed',budget_exceeded:'Budget reached'};
 const scenarios = {draft:{name:'The disappearing draft',purpose:'Tab navigation and draft recovery'},unicode:{name:'Unicode & multiline',purpose:'Emoji, non-Latin text and line breaks'},longform:{name:'Long-form writing',purpose:'Preserving a substantial draft'}};
 let appState = null;
@@ -166,16 +168,18 @@ function render() {
   const run = currentRun();
   if (!run) { renderEvals(); return; }
   text('#run-number',`RUN ${prettyId(run.id)}`);
-  text('#preset-badge',configurationName(run.features));
+  text('#preset-badge',configurationName(run.features,run.loopOnly));
   const runStatus = $('#run-state'); runStatus.className = `run-state ${run.status}`; runStatus.innerHTML = `<span></span>${escapeHTML(statuses[run.status] || run.status)}`;
   text('#stat-calls',run.usage?.calls ?? 0);
   text('#stat-elapsed',duration(run.elapsedMs));
   text('#session-number',`Session ${run.session || 1}`);
   text('#task-copy',run.task || 'Fix the draft that disappears when you switch tabs. Preserve the user’s writing and verify the fix.');
-  const featureKey = JSON.stringify([run.id,run.features]);
+  const featureKey = JSON.stringify([run.id,run.features,!!run.loopOnly]);
   if (featureSignature !== featureKey) {
     featureSignature = featureKey;
-    $('#harness-features').innerHTML = Object.entries(concepts).map(([key,concept]) => `<button class="feature-chip${run.features?.[key] ? '' : ' off'}" data-concept="${key}" title="${escapeHTML(concept.name)} ${run.features?.[key] ? 'enabled' : 'disabled'} — learn more">${svg(run.features?.[key] ? 'checkCircle' : 'dot')}${escapeHTML(concept.name)}</button>`).join('');
+    // Tools are shared infrastructure; only a loop-only builder run turns them off, so only it shows the chip.
+    const toolsChip = run.loopOnly ? `<button class="feature-chip off" data-concept="tools" title="${escapeHTML(toolsConcept.name)} disabled — learn more">${svg('dot')}${escapeHTML(toolsConcept.name)}</button>` : '';
+    $('#harness-features').innerHTML = toolsChip + Object.entries(concepts).map(([key,concept]) => `<button class="feature-chip${run.features?.[key] ? '' : ' off'}" data-concept="${key}" title="${escapeHTML(concept.name)} ${run.features?.[key] ? 'enabled' : 'disabled'} — learn more">${svg(run.features?.[key] ? 'checkCircle' : 'dot')}${escapeHTML(concept.name)}</button>`).join('');
   }
   const origin = appState.previewOrigin || 'http://127.0.0.1:4319';
   const nextPreviewKey = `${run.id}:${run.revision ?? 0}`;
@@ -317,14 +321,14 @@ function showClaims() {
   const scope = claims.hasEdit ? `${claims.browserActionsAfterEdit} successful browser actions after the last write_file (${escapeHTML(time(claims.lastEditAt))})` : `no successful write_file; ${claims.browserActionsAfterEdit} successful browser actions in the whole run`;
   openModal('What it claimed, what was observed','CLAIMS VS EVIDENCE',`<p class="dialog-description">Run ${escapeHTML(prettyId(run.id))} · ${escapeHTML(preset(run))} · ${claims.completionRequests} completion request${claims.completionRequests === 1 ? '' : 's'} · ${scope}.</p><div class="claims-layout"><div><span class="tiny-label">WHAT IT CLAIMED · LAST request_completion SUMMARY, VERBATIM</span><pre class="claims-summary" id="claims-summary">${escapeHTML(claims.summary || '(empty summary)')}</pre></div><div class="lesson-table-wrap"><table class="lesson-table claims-table" id="claims-table"><thead><tr><th>Behavior</th><th>Agent exercised in browser</th><th>Agent ran acceptance checks</th><th>Harness result</th></tr></thead><tbody>${claims.rows.map(row => `<tr data-claim="${row.id}"><th>${escapeHTML(row.behavior)}<small>Counted when: ${escapeHTML(row.rule)}</small></th><td>${yesNo(row.exercised)}</td><td>${escapeHTML(row.agentChecksText)}</td><td>${harness(row)}</td></tr>`).join('')}</tbody></table></div></div><p class="claims-footer" id="claims-footer">${escapeHTML(claims.footer)}</p>`);
 }
-function eventIcon(kind) { return {instructions:'file',context:'folder',prompt:'folder',tool:'terminal',tool_result:'terminal',edit:'edit',checks:'checkCircle',verification:'checkCircle',browser:'layout',memory:'layers',permission:'shield',gate:'shield',budget:'clock',reset:'refresh',model:'sparkles',assistant:'sparkles',run:'play',error:'error',status:'info'}[kind] || 'info'; }
+function eventIcon(kind) { return {instructions:'file',context:'folder',prompt:'folder',tool:'terminal',tool_result:'terminal',edit:'edit',checks:'checkCircle',verification:'checkCircle',browser:'layout',memory:'layers',permission:'shield',gate:'shield',budget:'clock',reset:'refresh',observation:'refresh',model:'sparkles',assistant:'sparkles',run:'play',error:'error',status:'info'}[kind] || 'info'; }
 function renderEvents(events) {
   const list = $('#activity-list');
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
   const scrollTop = list.scrollTop;
   list.innerHTML = events.map((event,index) => {
     const displayKind=event.title==='Paused at a safe tool boundary'?'run':event.kind;
-    return `<button class="event-row" data-event="${index}" aria-label="Inspect evidence: ${escapeHTML(event.title || event.kind)}"><span class="event-icon ${escapeHTML(displayKind)}">${svg(eventIcon(displayKind))}</span><span class="event-body"><span class="event-meta"><strong>${escapeHTML(event.title || event.kind || 'Event')}</strong><time>${escapeHTML(time(event.at))}</time></span>${event.detail ? `<p>${escapeHTML(stringify(event.detail))}</p>` : ''}<span class="event-label">${escapeHTML(displayKind==='run'?'Agent loop':displayKind==='reset'?'Agent loop · forced reset':displayKind || 'event')} · inspect evidence</span></span></button>`;
+    return `<button class="event-row" data-event="${index}" aria-label="Inspect evidence: ${escapeHTML(event.title || event.kind)}"><span class="event-icon ${escapeHTML(displayKind)}">${svg(eventIcon(displayKind))}</span><span class="event-body"><span class="event-meta"><strong>${escapeHTML(event.title || event.kind || 'Event')}</strong><time>${escapeHTML(time(event.at))}</time></span>${event.detail ? `<p>${escapeHTML(stringify(event.detail))}</p>` : ''}<span class="event-label">${escapeHTML(displayKind==='run'?'Agent loop':displayKind==='reset'?'Agent loop · forced reset':displayKind==='observation'?'Agent loop · observation':displayKind || 'event')} · inspect evidence</span></span></button>`;
   }).join('');
   if (nearBottom) list.scrollTop = list.scrollHeight; else list.scrollTop = scrollTop;
 }
@@ -386,7 +390,8 @@ async function refreshEvals() {
   catch(error) { toast(`Evaluation summary unavailable: ${error.message}`,true); }
   finally { evalInFlight = false; }
 }
-function configurationName(features) {
+function configurationName(features, loopOnly = false) {
+  if (loopOnly) return 'Loop only';
   const enabled = Object.keys(concepts).filter(key => features?.[key]);
   return enabled.length === 5 ? 'Engineered harness' : !enabled.length ? 'Minimal harness' : 'Custom harness';
 }
@@ -407,12 +412,12 @@ function renderEvals() {
     const provider = run?.provider || {};
     const currentSuite = group.suiteVersion === appState.checkSuiteVersion;
     const resultNote = currentSuite ? `${group.failed} failed or budget-limited · inspect a run` : `${group.recordedPasses || 0} / ${group.trials} passed historical checks · rerun required`;
-    return `<tr><td>${escapeHTML(configurationName(group.features))}<div class="configuration-list">${escapeHTML(enabled.length ? enabled.join(' · ') : 'All five optional features disabled')}</div></td><td>${escapeHTML(scenarios[group.scenario]?.name || group.scenario)}<div class="configuration-list">Harness v${escapeHTML(group.harnessVersion || 1)} · Check suite: ${escapeHTML(group.suiteVersion)}${currentSuite ? '' : ' · not current verification'}${group.resetAfterCalls ? ` · Forced reset after call ${escapeHTML(group.resetAfterCalls)}` : ''}</div></td><td><button class="matrix-result ${group.verified === group.trials ? '' : 'fail'}" ${run ? `data-open-run="${escapeHTML(run.id)}"` : ''}><strong>${group.verified} / ${group.trials}</strong><small>${escapeHTML(resultNote)}</small></button></td><td><span class="provider-name">${escapeHTML(group.model || provider.model || 'Unreported')}</span><div class="configuration-list">${escapeHTML(provider.baseUrl || 'Provider unreported')}<br>${escapeHTML(provider.protocol || '')}</div></td></tr>`;
+    return `<tr><td>${escapeHTML(configurationName(group.features,group.loopOnly))}<div class="configuration-list">${escapeHTML(group.loopOnly ? 'No tools · all five optional features disabled' : enabled.length ? enabled.join(' · ') : 'All five optional features disabled')}</div></td><td>${escapeHTML(scenarios[group.scenario]?.name || group.scenario)}<div class="configuration-list">Harness v${escapeHTML(group.harnessVersion || 1)} · Check suite: ${escapeHTML(group.suiteVersion)}${currentSuite ? '' : ' · not current verification'}${group.resetAfterCalls ? ` · Forced reset after call ${escapeHTML(group.resetAfterCalls)}` : ''}</div></td><td><button class="matrix-result ${group.verified === group.trials ? '' : 'fail'}" ${run ? `data-open-run="${escapeHTML(run.id)}"` : ''}><strong>${group.verified} / ${group.trials}</strong><small>${escapeHTML(resultNote)}</small></button></td><td><span class="provider-name">${escapeHTML(group.model || provider.model || 'Unreported')}</span><div class="configuration-list">${escapeHTML(provider.baseUrl || 'Provider unreported')}<br>${escapeHTML(provider.protocol || '')}</div></td></tr>`;
   }).join('') : '<tr><td colspan="4"><span class="unmeasured">— No agent outcomes measured yet. Run a coding agent to collect evidence. Preparing a workspace or checking the original bug does not count as an agent evaluation.</span></td></tr>';
   if (evaluationData?.note) text('#eval-note',evaluationData.note);
   renderLadder(runs);
   text('#history-count',`${runs.length} workspace${runs.length === 1 ? '' : 's'}`);
-  $('#run-history-list').innerHTML = runs.length ? runs.map(run => `<button class="history-row" data-open-run="${escapeHTML(run.id)}"><span class="event-icon">${svg(run.status === 'completed' ? 'checkCircle' : 'terminal')}</span><span class="history-main"><strong>${escapeHTML(configurationName(run.features))} <span style="font-weight:400;color:#a5b098">/ ${escapeHTML(prettyId(run.id))}</span></strong><p>${escapeHTML(scenarios[run.scenario || 'draft']?.name || run.scenario)} · ${escapeHTML(date(run.createdAt))}</p></span><span class="history-meta">${escapeHTML(statuses[run.status] || run.status)}<br>${run.usage?.calls ?? 0} model calls${Number.isFinite(run.elapsedMs) ? ` · ${duration(run.elapsedMs)}` : ''}${run.usage?.unreportedRequests ? '<br>Some token usage unreported' : ''}</span><span class="history-arrow">${svg('chevronRight')}</span></button>`).join('') : '<p class="history-empty">No workspaces yet. Prepare a workspace to reproduce the bug. Agent results appear only after a real model run.</p>';
+  $('#run-history-list').innerHTML = runs.length ? runs.map(run => `<button class="history-row" data-open-run="${escapeHTML(run.id)}"><span class="event-icon">${svg(run.status === 'completed' ? 'checkCircle' : 'terminal')}</span><span class="history-main"><strong>${escapeHTML(configurationName(run.features,run.loopOnly))} <span style="font-weight:400;color:#a5b098">/ ${escapeHTML(prettyId(run.id))}</span></strong><p>${escapeHTML(scenarios[run.scenario || 'draft']?.name || run.scenario)} · ${escapeHTML(date(run.createdAt))}</p></span><span class="history-meta">${escapeHTML(statuses[run.status] || run.status)}<br>${run.usage?.calls ?? 0} model calls${Number.isFinite(run.elapsedMs) ? ` · ${duration(run.elapsedMs)}` : ''}${run.usage?.unreportedRequests ? '<br>Some token usage unreported' : ''}</span><span class="history-arrow">${svg('chevronRight')}</span></button>`).join('') : '<p class="history-empty">No workspaces yet. Prepare a workspace to reproduce the bug. Agent results appear only after a real model run.</p>';
 }
 function ladderFilterLabel(filter) {
   return `${filter.model || 'Unreported model'} · ${scenarios[filter.scenario]?.name || filter.scenario || 'Unknown scenario'} · Harness v${filter.harnessVersion} · ${filter.resetAfterCalls ? `reset after call ${filter.resetAfterCalls}` : 'no forced reset'}`;
@@ -444,7 +449,7 @@ function openModal(title,kicker,body) {
 }
 function closeModal() { $('#modal').close(); modalVersion++; if (modalOpener instanceof HTMLElement) modalOpener.focus(); }
 function showConcept(key) {
-  const concept = concepts[key]; if (!concept) return;
+  const concept = key === 'tools' ? toolsConcept : concepts[key]; if (!concept) return;
   openModal(concept.name,'INSIDE THE HARNESS',`<div class="concept-icon">${svg(concept.icon)}</div><p>${escapeHTML(concept.description)}</p><div class="concept-example"><strong>IN THIS EXPERIMENT</strong><p>${escapeHTML(concept.example)}</p></div><div class="dialog-actions"><button class="button button-primary" data-close-modal>Back to the experiment</button></div>`);
 }
 function showSetup() {
