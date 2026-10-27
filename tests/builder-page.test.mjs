@@ -1,4 +1,4 @@
-// Harness builder page (docs/BUILDER.md, package B). Pure derivations on a small
+// Harness builder page (docs/BUILDER.md, packages B and E). Pure derivations on a small
 // fixture built from excerpts of recorded runs (tests/support/builder-recording.mjs,
 // with clearly marked TEST-ONLY synthetic parts), then the real page in Chromium
 // against the unmodified server on ports 4448/4449. No provider is configured and
@@ -15,7 +15,9 @@ import { COMPONENTS } from '../public/anatomy.mjs';
 import {
   STEPS, ORDER, MAX_ROWS, RECORDED_NOTE, NOT_RECORDED, requestText, requestDelta, requestView, activityExcerpt,
   proofSummary, diagramState, phoneViews, assetUrl, stateBeforeApproval, handoffText, changeSummary, parseStep, isRecorded, stepEntry,
-  handoffOf, handoffCarried, carriedText, EMPTY_HANDOFF_TEXT
+  handoffOf, handoffCarried, carriedText, EMPTY_HANDOFF_TEXT,
+  liveStepConfig, mergeLiveRun, liveStatusLine, presenterEvaluation, probeResult, stepLook, liveNote, isActiveRun, PENDING_TEXT, MAX_CALLS, POLL_MS, BUSY_MESSAGE,
+  failureReason, lastAgentCheckRevision
 } from '../public/builder.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -269,6 +271,193 @@ test('phoneViews: screenshots, live copies, approval banners', () => {
   assert.equal(parseStep(''), 0);
 });
 
+// ---------------- Live mode (package E): pure derivations ----------------
+test('liveStepConfig: the recorder\'s create bodies; step 6 resets after the first edit', async () => {
+  const { planSteps } = await import('../scripts/record-builder.mjs');
+  const plan = planSteps();
+  const step0 = liveStepConfig(0);
+  assert.equal(step0.modelOnly, true);
+  assert.equal(step0.endpoint, '/api/model/task-only');
+  assert.deepEqual(step0.body, {});
+  assert.deepEqual(step0.runs, []);
+  assert.ok(plan.find(item => item.step === 0).modelOnly);
+  const withoutReset = ({ resetAfterCalls, resetAfterFirstEdit, ...rest }) => rest;
+  for (let step = 1; step <= 7; step++) {
+    const config = liveStepConfig(step);
+    assert.equal(config.modelOnly, false);
+    assert.equal(config.endpoint, '/api/runs');
+    const planned = plan.filter(item => item.step === step);
+    assert.deepEqual(config.runs.map(run => run.slot), planned.map(item => item.slot), `step ${step} slots`);
+    config.runs.forEach((run, i) => {
+      if (step === 6) {
+        // Same configuration as the recorder, except the reset: right after the first file edit.
+        assert.deepEqual(withoutReset(run.body), withoutReset(planned[i].body));
+        assert.equal(run.body.resetAfterFirstEdit, true);
+        assert.equal('resetAfterCalls' in run.body, false, 'never both reset settings');
+      } else {
+        assert.deepEqual(run.body, planned[i].body, `step ${step} body`);
+        assert.equal('resetAfterFirstEdit' in run.body || 'resetAfterCalls' in run.body, false, `only step 6 resets (step ${step})`);
+      }
+      assert.equal(run.body.scenario, 'draft');
+    });
+    assert.equal(config.probe, step === 2);
+    assert.equal(config.approval, step === 7);
+  }
+  assert.deepEqual(liveStepConfig(1).runs[0].body, { mode: 'minimal', loopOnly: true, scenario: 'draft' });
+  assert.deepEqual(liveStepConfig(6).runs.map(run => [run.slot, run.body.features.memory]), [['withoutMemory', false], ['withMemory', true]], 'without memory first');
+  assert.deepEqual(liveStepConfig(7).runs[0].body, { mode: 'engineered', scenario: 'draft' });
+  for (const bad of [-1, 8, 1.5, 'x']) assert.throws(() => liveStepConfig(bad), /Unknown step/);
+  assert.equal(MAX_CALLS, 24);
+  assert.equal(POLL_MS, 1500);
+  assert.equal(BUSY_MESSAGE, 'This run is busy. Pause it and wait for the current operation to finish.');
+  const { evaluateStoppedRun } = await import('../scripts/evaluation-client.mjs');
+  assert.ok(String(evaluateStoppedRun).includes(BUSY_MESSAGE), 'the page retries exactly the conflict the recorder retries');
+});
+
+test('mergeLiveRun: the live run replaces the recorded one, without touching the recording', () => {
+  const recording = builderRecording();
+  const frozen = JSON.stringify(recording);
+  // TEST-ONLY synthetic live run, shaped like GET /api/runs/:id while it runs.
+  const run = { ...runOf(recording, 5), id: '00000000-0000-4000-8000-0000000000e5', status: 'running', startedAt: '2026-10-27T12:00:05.000Z', createdAt: '2026-10-27T12:00:00.000Z', activeSessionStartedAt: Date.now(), appliedRevision: null, appliedAt: null, revision: 'abc123', fixtureNote: 'TEST-ONLY synthetic live run.' };
+  const merged = mergeLiveRun(recording, 5, null, run);
+  assert.equal(JSON.stringify(recording), frozen, 'the input is never mutated');
+  assert.deepEqual(merged.live, { step5: true });
+  const entry = stepEntry(merged, 5);
+  assert.equal(entry.run, run);
+  assert.deepEqual(entry.live, { startedAt: run.startedAt });
+  assert.equal(entry.runId, run.id);
+  assert.equal(entry.screens, null, 'a live run has no screenshots');
+  assert.equal(merged.present[run.id], true, 'the live run is on this server');
+  assert.equal(stepEntry(merged, 3), stepEntry(recording, 3), 'other steps keep their recorded runs');
+  const facts = proofSummary(5, merged).footers[0].facts;
+  assert.equal(facts.note, liveNote(run.startedAt));
+  assert.match(facts.note, /^Live run\. Started at \d\d:\d\d:\d\d\.$/);
+  assert.equal(facts.live, true);
+  assert.equal(proofSummary(5, recording).footers[0].facts.note, RECORDED_NOTE);
+  // The request highlight compares with the previous step's live run when there is one.
+  const step4Live = { ...runOf(recording, 3), id: '00000000-0000-4000-8000-0000000000e4', status: 'completed', fixtureNote: 'TEST-ONLY synthetic live run.' };
+  assert.equal(requestView(merged, 5).previousStep, 3, 'step 4 is not recorded: compare with step 3');
+  const both = mergeLiveRun(merged, 4, null, step4Live);
+  assert.equal(requestView(both, 5).previousStep, 4, 'the live step 4 run is the comparison now');
+  assert.deepEqual(both.live, { step5: true, step4: true });
+  // Live phones: the sandbox URL carries the source revision; production its applied revision.
+  const phones = phoneViews(5, merged, 'http://127.0.0.1:4459');
+  assert.deepEqual(phones.groups[0].phones.map(p => [p.role, p.live, p.src]), [['sandbox', true, `http://127.0.0.1:4459/preview/${run.id}/index.html?rev=abc123`], ['production', true, `http://127.0.0.1:4459/production/${run.id}/index.html?rev=original`]]);
+  assert.equal(phones.groups[0].liveRun, true);
+  assert.equal(phoneViews(5, merged, null).groups[0].phones[0].missingText, 'Live preview unavailable');
+  // Step 7 live: one production phone whose banner changes with the approval.
+  const waiting = { ...runOf(recording, 7), id: '00000000-0000-4000-8000-0000000000e7', status: 'awaiting_approval', appliedRevision: null, appliedAt: null, activeSessionStartedAt: null, fixtureNote: 'TEST-ONLY synthetic live run.' };
+  const seven = phoneViews(7, mergeLiveRun(recording, 7, null, waiting), 'http://127.0.0.1:4459');
+  assert.deepEqual(seven.groups[0].phones.map(p => p.role), ['sandbox', 'production']);
+  assert.deepEqual(seven.groups[0].phones[1].banner, { state: 'waiting', text: 'Original build. One change is waiting for your approval.' });
+  const approved = { ...waiting, status: 'completed', appliedRevision: 'def456', appliedAt: '2026-10-27T12:10:00.000Z' };
+  const after = phoneViews(7, mergeLiveRun(recording, 7, null, approved), 'http://127.0.0.1:4459').groups[0].phones[1];
+  assert.equal(after.banner.state, 'approved');
+  assert.equal(after.src, `http://127.0.0.1:4459/production/${approved.id}/index.html?rev=def456`);
+  assert.match(proofSummary(7, mergeLiveRun(recording, 7, null, waiting)).highlights.join('\n'), /Still waiting for approval: production unchanged/);
+  assert.match(proofSummary(7, mergeLiveRun(recording, 7, null, { ...waiting, status: 'running', events: waiting.events.filter(e => e.kind !== 'permission'), changes: [] })).highlights.join('\n'), /The agent is still working\.[\s\S]*Files changed: shown when the agent stops/);
+  // Step 0: the model-only record.
+  const record = { ...recording.steps.step0, id: '00000000-0000-4000-8000-0000000000e0', at: '2026-10-27T12:00:00.000Z', fixtureNote: 'TEST-ONLY synthetic live record.' };
+  const zero = mergeLiveRun(recording, 0, null, record);
+  assert.deepEqual(stepEntry(zero, 0).live, { startedAt: record.at });
+  assert.equal(proofSummary(0, zero).footers[0].facts.note, liveNote(record.at));
+  // No recording at all: a live run still renders its step.
+  const alone = mergeLiveRun(null, 5, null, run);
+  assert.equal(isRecorded(alone, 5), true);
+  assert.equal(isRecorded(alone, 3), false);
+  assert.equal(proofSummary(5, alone).recorded, true);
+});
+
+test('mergeLiveRun on step 6: the second run waits its turn, and reset-after-edit wording', () => {
+  const recording = builderRecording();
+  const { withoutMemory, withMemory } = stepEntry(recording, 6);
+  // TEST-ONLY synthetic: the recorded pair re-shaped as live runs with resetAfterFirstEdit.
+  const first = { ...withoutMemory.run, id: '00000000-0000-4000-8000-0000000006a1', resetAfterCalls: null, resetAfterFirstEdit: true, fixtureNote: 'TEST-ONLY synthetic live run.' };
+  const second = { ...withMemory.run, id: '00000000-0000-4000-8000-0000000006b1', resetAfterCalls: null, resetAfterFirstEdit: true, fixtureNote: 'TEST-ONLY synthetic live run.' };
+  const pending = mergeLiveRun(mergeLiveRun(recording, 6, 'withoutMemory', first), 6, 'withMemory', null);
+  const six = stepEntry(pending, 6);
+  assert.equal(six.withoutMemory.run, first);
+  assert.deepEqual(six.withMemory, { run: null, live: { pending: true } }, 'never a recorded run next to a live one');
+  const summary = proofSummary(6, pending);
+  assert.equal(summary.footers[1].pending, true);
+  assert.equal(summary.footers[1].facts, null);
+  assert.equal(summary.highlights.at(-1), `With memory: ${PENDING_TEXT.toLowerCase()}`);
+  assert.equal(phoneViews(6, pending).groups[1].pending, true);
+  assert.equal(stepLook(6, pending), 'Both runs were set to reset right after their first file edit. Compare what each fresh session started with, and how each run ended.');
+  assert.equal(stepLook(6, recording), STEPS[6].look, 'the recorded pair reset by call count');
+  const full = mergeLiveRun(pending, 6, 'withMemory', second);
+  assert.equal(stepEntry(full, 6).withMemory.run, second);
+  assert.deepEqual(full.live, { step6: true });
+  assert.equal(requestView(full, 6).session, 2);
+  // A live run still in session 1 says so; one that never edits never resets.
+  const running = { ...first, status: 'running', events: first.events.filter(e => e.kind !== 'reset'), usage: { ...first.usage, calls: 4 } };
+  assert.equal(proofSummary(6, mergeLiveRun(recording, 6, 'withoutMemory', running)).highlights[0], 'Without memory: running, 4 calls so far; not cut off yet.');
+  const noEdit = { ...first, status: 'budget_exceeded', events: first.events.filter(e => !['reset', 'edit'].includes(e.kind)) };
+  assert.equal(proofSummary(6, mergeLiveRun(recording, 6, 'withoutMemory', noEdit)).highlights[0], 'Without memory: stopped (budget_exceeded) after 24 calls without editing a file, so it never reset and had no fresh session.');
+  const afterCut = { ...second, status: 'running', activeSessionStartedAt: Date.now() };
+  assert.match(proofSummary(6, mergeLiveRun(recording, 6, 'withMemory', afterCut)).highlights.at(-1), /^With memory, after the cut-off: still running, 24 calls so far\.$/);
+});
+
+test('step 6 outcome: the failure reason, and an edit after the last check', () => {
+  const recording = builderRecording();
+  const base = stepEntry(recording, 6).withoutMemory.run;
+  const reset = base.events.find(e => e.kind === 'reset');
+  // TEST-ONLY synthetic: a run cut off after its first edit that then failed on a provider error.
+  const failed = { ...base, status: 'failed', usage: { ...base.usage, calls: 19 }, fixtureNote: 'TEST-ONLY synthetic failed run.', events: [reset,
+    { kind: 'usage', title: 'Request token usage unavailable', detail: 'This request did not return usage data.' },
+    { kind: 'error', title: 'Real run stopped', detail: 'terminated' }] };
+  const withFailure = { ...recording, steps: { ...recording.steps, step6: { ...recording.steps.step6, withoutMemory: { ...recording.steps.step6.withoutMemory, run: failed } } } };
+  assert.equal(proofSummary(6, withFailure).highlights[1], 'Without memory, after the cut-off: failed after 19 calls in total (provider error: terminated).');
+  assert.equal(failureReason({ events: [{ kind: 'error', detail: 'x'.repeat(200) }] }), `error: ${'x'.repeat(80)}`, 'first 80 characters; not called a provider error without the usage event');
+  assert.equal(failureReason({ events: [] }), null);
+  // TEST-ONLY synthetic: the agent checked revision r1, then edited again (r2) and never checked r2.
+  const checks = revision => ({ passed: 6, total: 6, revision });
+  const unchecked = { ...base, status: 'budget_exceeded', revision: 'r2', fixtureNote: 'TEST-ONLY synthetic unchecked edit.', events: [reset,
+    { kind: 'verification', title: 'Running browser checks' }, { kind: 'verification', title: '6/6 browser checks passed', checks: checks('r1') },
+    { kind: 'tool_result', tool: 'run_checks', result: checks('r1') },
+    { kind: 'edit', title: 'File changed' },
+    { kind: 'verification', title: 'Independent final browser assessment' }, { kind: 'verification', title: '0/6 browser checks passed', checks: { ...checks('r2'), passed: 0 } }] };
+  assert.equal(lastAgentCheckRevision(unchecked), 'r1', 'the harness assessment is not the agent\'s check');
+  const withUnchecked = { ...recording, steps: { ...recording.steps, step6: { ...recording.steps.step6, withoutMemory: { ...recording.steps.step6.withoutMemory, run: unchecked } } } };
+  assert.match(proofSummary(6, withUnchecked).highlights[1], /^Without memory, after the cut-off: stopped at its budget after 24 calls in total[^]*Its last edit came after its last check and was never checked\.$/);
+  assert.doesNotMatch(proofSummary(6, { ...withUnchecked, steps: { ...withUnchecked.steps, step6: { ...withUnchecked.steps.step6, withoutMemory: { run: { ...unchecked, revision: 'r1' } } } } }).highlights[1], /never checked/);
+  assert.equal(lastAgentCheckRevision({ events: [] }), null, 'no agent check, no claim');
+});
+
+test('liveStatusLine, isActiveRun, presenterEvaluation and probeResult', () => {
+  const recording = builderRecording();
+  const run = { ...runOf(recording, 5), id: '1a2b3c4d-0000-4000-8000-000000000000', status: 'running', elapsedMs: 41600, usage: { input: 12000, output: 345, calls: 7 }, fixtureNote: 'TEST-ONLY synthetic live run.' };
+  assert.deepEqual(liveStatusLine(run), { kind: 'run', status: 'running', statusLabel: 'Running', calls: 7, maxCalls: 24, tokens: 12345, unreported: 0, seconds: 42, runId: run.id, shortId: '1A2B3C4D', text: 'Running · call 7 of 24 · 12,345 reported tokens · 42 s · run 1A2B3C4D' });
+  assert.equal(liveStatusLine({ ...run, status: 'budget_exceeded', usage: { input: 10, output: 5, calls: 24, unreportedRequests: 2 } }).text, 'Budget reached · call 24 of 24 · 15 reported tokens (2 requests without usage) · 42 s · run 1A2B3C4D');
+  const record = { ...recording.steps.step0, fixtureNote: 'TEST-ONLY' };
+  assert.equal(liveStatusLine(record).text, `Completed · 1 request, no tools · 168 reported tokens · request ${record.id.slice(0, 8).toUpperCase()}`);
+  assert.equal(liveStatusLine({ ...record, usageReported: false }).text, `Completed · 1 request, no tools · tokens not reported · request ${record.id.slice(0, 8).toUpperCase()}`);
+  assert.equal(liveStatusLine(null), null);
+  assert.equal(isActiveRun({ status: 'running' }), true);
+  assert.equal(isActiveRun({ status: 'pausing' }), true);
+  assert.equal(isActiveRun({ status: 'completed', activeSessionStartedAt: 5 }), true, 'terminal status can precede the lock release');
+  assert.equal(isActiveRun({ status: 'completed', activeSessionStartedAt: null }), false);
+  assert.equal(isActiveRun(null), false);
+  // TEST-ONLY synthetic presenter evaluation event, in the shape the server records.
+  const checks = { passed: 6, total: 6, revision: 'r1', results: [{ name: 'Draft survives page refresh', passed: true, detail: 'ok' }], heldOut: { passed: 4, total: 5, revision: 'r1', results: [{ name: 'A restored draft stays literal', passed: false, detail: 'no' }] } };
+  const evaluated = { events: [{ kind: 'checks', title: 'Presenter evaluation started', phase: 'start', at: 't0' }, { kind: 'checks', title: '6/6 checks passed', phase: 'end', origin: 'presenter', at: 't1', result: checks }] };
+  assert.deepEqual(presenterEvaluation(evaluated), { at: 't1', revision: 'r1', visible: { passed: 6, total: 6, revision: 'r1', results: [{ name: 'Draft survives page refresh', passed: true, detail: 'ok' }] }, heldOut: { passed: 4, total: 5, revision: 'r1', results: [{ name: 'A restored draft stays literal', passed: false, detail: 'no' }] } });
+  assert.equal(presenterEvaluation({ events: [evaluated.events[0]] }), null);
+  assert.equal(presenterEvaluation(null), null);
+  const probe = runOf(recording, 2).events.find(e => e.title === 'Protected-file boundary tested');
+  const result = probeResult(runOf(recording, 2));
+  assert.equal(result.rejected, true);
+  assert.equal(result.error, probe.result.error);
+  assert.equal(probeResult({ events: [{ ...probe, result: { written: '../x' } }] }).rejected, false);
+  assert.equal(probeResult({ events: [] }), null);
+  // A live step 2 has not been probed yet: the page says so instead of "not recorded".
+  const liveTwo = { ...runOf(recording, 2), events: runOf(recording, 2).events.filter(e => e.title !== 'Protected-file boundary tested'), fixtureNote: 'TEST-ONLY synthetic live run.' };
+  const merged = mergeLiveRun(recording, 2, null, liveTwo);
+  assert.ok(proofSummary(2, merged).highlights.includes('Write outside the sandbox: not tested yet (your action, once the run has stopped)'));
+  assert.match(stepLook(2, merged), /Test the sandbox boundary/);
+  assert.equal(stepLook(2, recording), STEPS[2].look);
+});
+
 // ---------------- Real browser ----------------
 const origin = 'http://127.0.0.1:4448';
 const preview = 'http://127.0.0.1:4449';
@@ -360,6 +549,11 @@ test('builder page in Chromium: eight steps, highlights, fallbacks, two viewport
   assert.deepEqual(await current(), []);
   assert.equal(await page.locator('#back').isDisabled(), true);
   assert.match(await page.locator('#code figcaption').innerText(), /lib\/runner\.mjs/);
+  // No provider on this server: no live button, a plain note instead, and the badge says recorded.
+  await page.locator('#live [data-live-unavailable]').waitFor();
+  assert.match(await page.locator('#live [data-live-unavailable]').innerText(), /Live runs are off\. No model connection is configured on this server\./);
+  assert.equal(await page.locator('[data-action="run-live"]').count(), 0);
+  assert.equal(await page.locator('#mode-text').innerText(), 'RECORDED RUNS · NOT LIVE');
 
   await page.keyboard.press('ArrowRight');
   await waitStep(1, 'Agent loop');
@@ -471,6 +665,7 @@ test('builder page in Chromium: eight steps, highlights, fallbacks, two viewport
     if (step) await page.keyboard.press('ArrowRight');
     await page.waitForFunction(n => document.querySelector('#step-count').textContent === `STEP ${n} OF 7`, step);
     assert.match(await page.locator('#proof [data-not-recorded]').innerText(), /^Not recorded yet/, `step ${step}`);
+    assert.equal(await page.locator('[data-action="run-live"]').count(), 0, 'still no provider, still no live button');
     assert.equal(await page.locator('#diagram .anatomy-card').count(), 7);
     assert.ok((await page.locator('#problem').innerText()).length > 20);
     assert.ok(await noHorizontalScroll());

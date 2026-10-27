@@ -46,10 +46,12 @@ function evaluationSummary() {
     const suiteVersion = run.checks ? run.checks.suiteVersion || 'notes-v1' : 'unassessed';
     const harnessVersion = run.harnessVersion || 1;
     const resetAfterCalls = run.resetAfterCalls ?? null;
+    // A reset by progress is a different experiment from a reset by call count (and from none).
+    const resetAfterFirstEdit = run.resetAfterFirstEdit === true;
     // Loop-only runs are builder evidence: never pooled with Minimal or Engineered.
     const loopOnly = run.loopOnly === true;
-    const key = JSON.stringify([run.provider?.model, run.provider?.baseUrl, run.provider?.protocol, run.features, run.scenario, suiteVersion, harnessVersion, resetAfterCalls, loopOnly]);
-    if (!groups.has(key)) groups.set(key, { mode: run.mode, features: run.features, loopOnly, model: run.provider?.model, scenario: run.scenario, suiteVersion, harnessVersion, resetAfterCalls, trials: 0, verified: 0, heldOutVerified: 0, recordedPasses: 0, failed: 0, inputTokens: 0, outputTokens: 0, unreportedRequests: 0, elapsedMs: 0, runIds: [] });
+    const key = JSON.stringify([run.provider?.model, run.provider?.baseUrl, run.provider?.protocol, run.features, run.scenario, suiteVersion, harnessVersion, resetAfterCalls, resetAfterFirstEdit, loopOnly]);
+    if (!groups.has(key)) groups.set(key, { mode: run.mode, features: run.features, loopOnly, model: run.provider?.model, scenario: run.scenario, suiteVersion, harnessVersion, resetAfterCalls, resetAfterFirstEdit, trials: 0, verified: 0, heldOutVerified: 0, recordedPasses: 0, failed: 0, inputTokens: 0, outputTokens: 0, unreportedRequests: 0, elapsedMs: 0, runIds: [] });
     const group = groups.get(key); group.trials++;
     if (run.checks?.revision === run.revision && run.checks.passed === run.checks.total && run.checks.total > 0) {
       group.recordedPasses++;
@@ -128,7 +130,7 @@ const app = http.createServer(async (req, res) => {
         const options = await body(req);
         if (options.source && options.source !== 'live') throw new Error('Only real model runs are supported.');
         const p = getPublicConfig();
-        const run = await createRun({ mode: options.mode, features: options.features, scenario: options.scenario, resetAfterCalls: options.resetAfterCalls, loopOnly: options.loopOnly, provider: { model: p.model, baseUrl: p.baseUrl, protocol: p.protocol } });
+        const run = await createRun({ mode: options.mode, features: options.features, scenario: options.scenario, resetAfterCalls: options.resetAfterCalls, resetAfterFirstEdit: options.resetAfterFirstEdit, loopOnly: options.loopOnly, provider: { model: p.model, baseUrl: p.baseUrl, protocol: p.protocol } });
         return json(res, 201, publicRun(run));
       }
       if (pathname === '/api/model/task-only' && req.method === 'POST') {

@@ -9,3 +9,4 @@ coverage/
 Thumbs.db
 presentation/.build/
 .server.err
+presentation/video/*.webm

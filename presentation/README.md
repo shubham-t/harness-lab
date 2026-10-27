@@ -31,6 +31,19 @@ The appendix slides keep their original text and labels. Slides 44 and 45 show t
 
 The deck uses the demo's cream, green, blue and orange palette. [Coverage mapping](SOURCE-COVERAGE.md) explains the adaptation of the reference deck. [Presenter runbook](../docs/PRESENTER.md) gives setup, timing and fallback instructions.
 
+## Live recording of the builder page
+
+`record-builder-video.mjs` opens `/builder.html` on the running server at 1440×900 with Playwright's video capture on, presses **Run this step live** on each of the eight steps, waits for each real run and its presenter evaluation, triggers the sandbox probe on step 2, opens the diff on step 7 and approves it only when the diff changes `src/storage.js` alone, keeps the notes key and adds a draft key. It writes `presentation/video/harness-builder-live.webm` (ignored by Git, never changed afterwards), a `.trim.json` with the moments where something changed on screen, and a `.notes.txt` timeline with mm:ss marks and the run ids. A one-second title card marks every step boundary. Every step makes real, billable model calls; a dropped provider connection is shown, noted, and the step is started again. With the free model the whole recording takes about twenty-five minutes. The video is silent.
+
+`trim-video.mjs` then writes `<name>.trimmed.webm` with the idle waiting cut out, keeping every moment where the screen changed plus a little context, and leaves the original untouched. It uses a full ffmpeg when one is available (on PATH or the `ffmpeg-static` package) for exact cuts; otherwise headless Chromium replays the kept intervals of the original while Playwright records them, which needs nothing beyond the project's dependencies and lands cut points within about half a second.
+
+```powershell
+npm start
+node presentation/record-builder-video.mjs --pause 8
+node presentation/trim-video.mjs
+```
+
+
 ## Rebuild
 
 `build.mjs` writes the deck and `speaker-notes.md` with [pptxgenjs](https://www.npmjs.com/package/pptxgenjs); the Codex artifact runtime is no longer needed (the earlier source that needed it is in git history before this rebuild). pptxgenjs is an authoring dependency only and is not part of the application's `package.json`.

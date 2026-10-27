@@ -16,7 +16,7 @@
       <div class="breadcrumb"><span class="breadcrumb-home">Harness Lab</span><span>/</span><strong>Build a harness, step by step</strong></div>
     </div>
     <div class="topbar-actions">
-      <span class="local-badge"><span class="status-light"></span>RECORDED RUNS · NOT LIVE</span>
+      <span class="local-badge" id="mode-badge" data-mode="recorded"><span class="status-light"></span><span id="mode-text">RECORDED RUNS · NOT LIVE</span></span>
       <button class="button button-secondary" id="back" type="button" aria-keyshortcuts="ArrowLeft">Back</button>
       <button class="button button-primary" id="next" type="button" aria-keyshortcuts="ArrowRight">Next</button>
     </div>
@@ -42,13 +42,15 @@
         <p class="builder-legend"><span>Blue · added</span><span>Orange outline · added at this step</span><span>Gray · not yet</span></p>
         <figure class="code-excerpt" id="code"></figure>
       </section>
-      <section class="surface builder-panel panel-proof" id="panel-proof" aria-labelledby="proof-kicker" aria-live="polite">
+      <section class="surface builder-panel panel-proof" id="panel-proof" aria-labelledby="proof-kicker">
         <span class="panel-kicker" id="proof-kicker">3 · PROOF IT IS THERE</span>
-        <div id="proof"></div>
+        <div id="live"></div>
+        <div id="proof" aria-live="polite"></div>
       </section>
     </div>
     <section class="surface builder-phones" id="phones" aria-label="Sandbox and production phones"></section>
   </main>
-  <footer class="global-footer builder-footer"><span>HARNESS LAB</span><span>Every step is a recorded run with its id and date. Nothing here is live.</span><span>Left and right arrow keys move between steps.</span></footer>
+  <dialog id="modal" class="modal" aria-labelledby="modal-title"><div class="modal-header"><div><span class="panel-kicker" id="modal-kicker"></span><h2 id="modal-title"></h2></div><button class="icon-button" id="modal-close" type="button" aria-label="Close dialog">×</button></div><div id="modal-body" class="modal-body"></div></dialog>
+  <footer class="global-footer builder-footer"><span>HARNESS LAB</span><span>Every step shows a real run with its id and date: recorded, or live when you run it here.</span><span>Left and right arrow keys move between steps.</span></footer>
 </body>
 </html>

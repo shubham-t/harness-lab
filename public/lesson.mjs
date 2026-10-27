@@ -154,14 +154,14 @@ export const LADDER_RUNGS = [
 ];
 const featureSet = features => allFeatures.filter(key => features?.[key]).join(',');
 const rungKey = list => allFeatures.filter(key => list.includes(key)).join(',');
-export function ladderFilterKey(group) { return JSON.stringify([group.model ?? null, group.scenario ?? null, group.harnessVersion || 1, group.resetAfterCalls ?? null]); }
+export function ladderFilterKey(group) { return JSON.stringify([group.model ?? null, group.scenario ?? null, group.harnessVersion || 1, group.resetAfterCalls ?? null, group.resetAfterFirstEdit === true]); }
 export function ladderFilters(groups = [], runs = []) {
   const filters = new Map();
   for (const group of groups.filter(group => !group.loopOnly)) {
     const key = ladderFilterKey(group);
     const latest = runs.filter(run => group.runIds?.includes(run.id)).map(run => String(run.createdAt || '')).sort().at(-1) || '';
     const existing = filters.get(key);
-    if (!existing) filters.set(key, { key, model: group.model ?? null, scenario: group.scenario ?? null, harnessVersion: group.harnessVersion || 1, resetAfterCalls: group.resetAfterCalls ?? null, latest });
+    if (!existing) filters.set(key, { key, model: group.model ?? null, scenario: group.scenario ?? null, harnessVersion: group.harnessVersion || 1, resetAfterCalls: group.resetAfterCalls ?? null, resetAfterFirstEdit: group.resetAfterFirstEdit === true, latest });
     else if (latest > existing.latest) existing.latest = latest;
   }
   return [...filters.values()].sort((a, b) => b.latest.localeCompare(a.latest));
@@ -210,5 +210,5 @@ export function comparableRuns(run, runs) {
   return runs.filter(other => other.id !== run.id && !other.loopOnly && other.usage?.calls > 0 && preset(other) !== mode && preset(other) !== 'Custom' &&
     other.scenario === run.scenario && (other.session || 1) === (run.session || 1) && (other.harnessVersion || 1) === (run.harnessVersion || 1) &&
     ['model','baseUrl','protocol'].every(key => !!run.provider?.[key] && run.provider[key] === other.provider?.[key]) &&
-    other.task === run.task && (other.resetAfterCalls ?? null) === (run.resetAfterCalls ?? null)).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    other.task === run.task && (other.resetAfterCalls ?? null) === (run.resetAfterCalls ?? null) && (other.resetAfterFirstEdit === true) === (run.resetAfterFirstEdit === true)).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }

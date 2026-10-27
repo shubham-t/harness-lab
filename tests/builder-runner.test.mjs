@@ -223,3 +223,163 @@ test('lesson: preset, outcome, comparison and ladder treat loop-only runs as bui
   assert.equal(rows.some(row => row.custom), false);
   assert.deepEqual(ladderFilters([group({ loopOnly: true, runIds: ['loop'] })], [loop]), [], 'Loop-only evidence alone creates no ladder filter');
 });
+
+// Work package D: reset after the first edit. Same mocked transport; the loop,
+// file writes, events, handoff and prompt assembly are real.
+const FIRST_EDIT_DETAIL = (call, memory) => `Configured forced reset after the first file edit (model call ${call}; resetAfterFirstEdit = true); every preset resets at this same point in its work. This is a harness setting that simulates a context limit, not a provider error. The previous API conversation is cleared. The configured memory policy decides what is restored: ${memory ? 'memory is enabled, so a frozen handoff of recorded progress is supplied to the next session' : 'memory is off, so no handoff is supplied; the next session receives the task and its normal inputs only'}. Workspace files remain as they are.`;
+// Each script entry is one model reply: 'text', or a list of tool calls executed in order.
+// After the script ends, the next request is held open until Pause aborts it.
+function editScript(t, observed, script) {
+  t.mock.method(globalThis, 'fetch', (_url, options) => {
+    observed.push(JSON.parse(options.body));
+    const n = observed.length, reply = script[n - 1];
+    if (!reply) return new Promise((_resolve, reject) => {
+      if (options.signal.aborted) reject(new DOMException('Aborted', 'AbortError'));
+      else options.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+    });
+    if (reply === 'text') return json(textReply(n));
+    return json({ status: 'completed', output: reply.map(([name, args], i) => ({ type: 'function_call', call_id: `edit-unit-${n}-${i}`, name, arguments: JSON.stringify(args) })), usage: { input_tokens: 5, output_tokens: 3 } });
+  });
+}
+const write = (content = '// TEST ONLY edit\n') => ['write_file', { path: 'src/storage.js', content }];
+const read = ['read_file', { path: 'PROJECT.md' }];
+const list = ['list_files', {}];
+
+test('createRun validates resetAfterFirstEdit and keeps it exclusive with resetAfterCalls', async () => {
+  for (const value of ['true', 1, 0, null, {}, []]) await assert.rejects(createRun({ mode: 'minimal', resetAfterFirstEdit: value }), { message: 'resetAfterFirstEdit must be true, false or omitted.' }, JSON.stringify(value));
+  for (const resetAfterCalls of [2, 5, 23]) await assert.rejects(createRun({ mode: 'engineered', resetAfterFirstEdit: true, resetAfterCalls }), { message: 'Use resetAfterCalls or resetAfterFirstEdit, not both.' });
+  const flagged = await createRun({ mode: 'minimal', resetAfterFirstEdit: true });
+  assert.equal(flagged.resetAfterFirstEdit, true);
+  assert.equal(flagged.resetAfterCalls, null);
+  assert.equal((await createRun({ mode: 'minimal' })).resetAfterFirstEdit, false, 'New runs always store a boolean');
+  assert.equal((await createRun({ mode: 'minimal', resetAfterFirstEdit: true, resetAfterCalls: null })).resetAfterFirstEdit, true, 'A null call count is the same as omitted');
+  const byCalls = await createRun({ mode: 'minimal', resetAfterFirstEdit: false, resetAfterCalls: 4 });
+  assert.deepEqual([byCalls.resetAfterFirstEdit, byCalls.resetAfterCalls], [false, 4]);
+  assert.equal((await createRun({ mode: 'minimal', loopOnly: true, resetAfterFirstEdit: true })).resetAfterFirstEdit, true, 'A loop-only run may carry the flag');
+});
+
+test('resetAfterFirstEdit: both presets reset right after their first write, at different call numbers; a handoff only with memory', async t => {
+  const content = '// TEST ONLY first edit for the reset test\n';
+  for (const [mode, script, call] of [
+    // Minimal edits at call 2 (then reads in the same call), and edits again in session 2: no second reset.
+    ['minimal', [[list], [write(content), read], [write('// TEST ONLY session 2 edit\n')]], 2],
+    // Engineered edits at call 4; a refused write at call 2 is not an edit.
+    ['engineered', [[list], [['write_file', { path: 'tests/hidden.js', content: 'x' }]], [read], [write(content)], 'text'], 4]
+  ]) {
+    await t.test(mode, async t => {
+      const observed = [];
+      editScript(t, observed, script);
+      const run = await createRun({ mode, provider: getPublicConfig(), resetAfterFirstEdit: true });
+      startRun(run);
+      await waitFor(() => observed.length === script.length + 1 && run.session === 2, `request ${script.length + 1} in session 2`);
+      await pauseRun(run);
+      assert.equal(run.status, 'paused');
+      const memory = mode === 'engineered';
+      const resets = run.events.filter(item => item.kind === 'reset');
+      assert.equal(resets.length, 1, 'At most one forced reset per run');
+      const [reset] = resets;
+      assert.equal(reset.title, 'Context limit reached: fresh session required');
+      assert.equal(reset.detail, FIRST_EDIT_DETAIL(call, memory));
+      assert.deepEqual({ call: reset.call, session: reset.session, resetAfterFirstEdit: reset.resetAfterFirstEdit, memory: reset.memory }, { call, session: 1, resetAfterFirstEdit: true, memory });
+      assert.equal('resetAfterCalls' in reset, false);
+      assert.deepEqual({ ...run.forcedReset, at: undefined }, { afterCall: call, afterFirstEdit: true, session: 1, at: undefined });
+      assert.ok(Number.isFinite(Date.parse(run.forcedReset.at)));
+      // The reset follows the first edit and every tool execution of that model call.
+      const resetIndex = run.events.indexOf(reset);
+      const firstEdit = run.events.findIndex(item => item.kind === 'edit');
+      assert.ok(firstEdit >= 0 && firstEdit < resetIndex);
+      const callEvents = run.events.filter(item => item.kind === 'model' && item.title === 'Calling the configured model');
+      assert.equal(callEvents.filter(item => run.events.indexOf(item) < resetIndex).length, call, 'No model call between the edit and the reset');
+      assert.equal(run.events[resetIndex - 1].kind, 'tool_result');
+      assert.equal(run.events[resetIndex - 1].tool, script[call - 1].at(-1)[0], 'The last tool of that call ran before the reset');
+      assert.ok(run.events.findIndex(item => item.title === 'Fresh model session started') > resetIndex);
+      // Session 2 starts without previous API messages; the handoff exists only with memory.
+      assert.equal(observed[call].input.length, 1);
+      assert.ok(observed[call - 1].input.length > 1);
+      assert.equal(observed[call].instructions.includes('Restored durable memory'), memory);
+      assert.equal(!!run.sessionHandoff, memory);
+      if (memory) {
+        assert.deepEqual(run.sessionHandoff.editedFiles.map(item => item.file), ['src/storage.js'], 'The handoff names the edited file');
+        assert.equal(run.sessionHandoff.previousSession, 1);
+        assert.match(observed[call].instructions, /"editedFiles":\[\{"file":"src\/storage.js"/);
+        assert.equal(run.events.filter(item => item.kind === 'tool_error').length, 1, 'The refused write at call 2 did not trigger a reset');
+      }
+      assert.equal(run.session, 2);
+      assert.equal(run.usage.calls, script.length + 1);
+    });
+  }
+});
+
+test('resetAfterFirstEdit: a run that never writes never resets, and neither does a loop-only run', async t => {
+  await t.test('Minimal with tools but no successful write runs to its budget in session 1', async t => {
+    const observed = [];
+    const script = Array.from({ length: 24 }, (_, i) => i === 3 ? [['write_file', { path: '../outside.js', content: 'x' }]] : i % 2 ? 'text' : [list]);
+    editScript(t, observed, script);
+    const run = await createRun({ mode: 'minimal', provider: getPublicConfig(), resetAfterFirstEdit: true });
+    const startRevision = run.revision;
+    startRun(run);
+    await waitFor(() => run.status !== 'running' && !running(run.id), 'run to stop');
+    assert.equal(run.status, 'budget_exceeded');
+    assert.equal(observed.length, 24);
+    assert.equal(run.session, 1);
+    assert.equal(run.forcedReset, undefined);
+    assert.equal(run.events.filter(item => item.kind === 'tool_error').length, 1, 'The refused write is recorded');
+    assert.equal(run.events.some(item => item.kind === 'reset' || item.kind === 'edit'), false);
+    assert.equal(await revision(run.id), startRevision);
+  });
+  await t.test('loop-only with the flag: a hallucinated write is unavailable, so nothing edits and nothing resets', async t => {
+    const observed = [];
+    editScript(t, observed, Array.from({ length: 24 }, (_, i) => i === 1 ? [write()] : 'text'));
+    const run = await createRun({ mode: 'minimal', loopOnly: true, provider: getPublicConfig(), resetAfterFirstEdit: true });
+    startRun(run);
+    await waitFor(() => run.status !== 'running' && !running(run.id), 'loop-only run to stop');
+    assert.equal(run.status, 'budget_exceeded');
+    assert.equal(observed.length, 24);
+    assert.equal(run.session, 1);
+    assert.equal(run.forcedReset, undefined);
+    assert.equal(run.events.find(item => item.kind === 'tool_error').detail, UNAVAILABLE('write_file'));
+    assert.equal(run.events.some(item => item.kind === 'reset' || item.kind === 'edit'), false);
+  });
+});
+
+test('resetAfterCalls still resets by call count and records no first-edit field', async t => {
+  const observed = [];
+  editScript(t, observed, [[write()], [list], [list]]);
+  const run = await createRun({ mode: 'minimal', provider: getPublicConfig(), resetAfterCalls: 2 });
+  startRun(run);
+  await waitFor(() => observed.length === 4 && run.session === 2, 'session 2 request');
+  await pauseRun(run);
+  const resets = run.events.filter(item => item.kind === 'reset');
+  assert.equal(resets.length, 1);
+  assert.equal(resets[0].call, 2, 'The call count decides, not the edit at call 1');
+  assert.equal(resets[0].resetAfterCalls, 2);
+  assert.equal('resetAfterFirstEdit' in resets[0], false);
+  assert.match(resets[0].detail, /^Configured forced reset after model call 2 \(resetAfterCalls = 2\); every preset resets at this same call count\. This is a harness setting/);
+  assert.equal(run.forcedReset.afterFirstEdit, undefined);
+});
+
+test('lesson: comparison and the ladder filter separate resetAfterFirstEdit', () => {
+  const provider = { model: 'm', baseUrl: 'https://unit.invalid', protocol: 'responses' };
+  const common = { task: 'same task', harnessVersion: 4, scenario: 'draft', revision: 'r', usage: { calls: 6 }, provider, session: 2, createdAt: '2026-10-27', events: [], loopOnly: false, resetAfterCalls: null };
+  const ALL = { instructions: true, context: true, memory: true, verification: true, permissions: true };
+  const minimalEdit = { ...common, id: 'min-edit', features: NONE, resetAfterFirstEdit: true, status: 'completed' };
+  const all = [minimalEdit,
+    { ...common, id: 'eng-edit', features: ALL, resetAfterFirstEdit: true, status: 'awaiting_approval' },
+    { ...common, id: 'eng-plain', features: ALL, resetAfterFirstEdit: false, status: 'awaiting_approval' },
+    { ...common, id: 'eng-old', features: ALL, status: 'awaiting_approval' },
+    { ...common, id: 'eng-calls', features: ALL, resetAfterCalls: 5, resetAfterFirstEdit: false, status: 'awaiting_approval' }];
+  assert.deepEqual(comparableRuns(minimalEdit, all).map(run => run.id), ['eng-edit']);
+  assert.deepEqual(comparableRuns({ ...minimalEdit, resetAfterFirstEdit: false }, all).map(run => run.id).sort(), ['eng-old', 'eng-plain'], 'Absent and false are the same setting');
+
+  const group = extra => ({ model: 'm', scenario: 'draft', harnessVersion: 4, resetAfterCalls: null, features: NONE, loopOnly: false, suiteVersion: 'unassessed', trials: 1, verified: 0, heldOutVerified: 0, recordedPasses: 0, failed: 0, inputTokens: 10, outputTokens: 5, unreportedRequests: 0, ...extra });
+  const groups = [group({ resetAfterFirstEdit: true, runIds: ['min-edit'] }), group({ resetAfterFirstEdit: false, runIds: ['min-plain'] }), group({ runIds: ['min-old'] }), group({ resetAfterCalls: 5, resetAfterFirstEdit: false, runIds: ['min-calls'] })];
+  const runs = groups.map((item, i) => ({ id: item.runIds[0], createdAt: `2026-10-2${i}`, usage: { calls: 3 }, status: 'completed' }));
+  const filters = ladderFilters(groups, runs);
+  assert.equal(filters.length, 3, 'first edit, none (absent equals false), and call 5');
+  const edit = filters.find(filter => filter.resetAfterFirstEdit === true);
+  assert.equal(edit.resetAfterCalls, null);
+  const none = filters.filter(filter => filter.resetAfterFirstEdit === false && filter.resetAfterCalls === null);
+  assert.equal(none.length, 1);
+  assert.equal(ladderTable({ checkSuiteVersion: 'notes-v3', groups }, runs, edit.key)[0].trials, 1, 'The first-edit rung counts only its own group');
+  assert.equal(ladderTable({ checkSuiteVersion: 'notes-v3', groups }, runs, none[0].key)[0].trials, 2);
+});

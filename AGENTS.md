@@ -28,7 +28,7 @@ For continuation work, first read [current project status](docs/PROJECT-STATUS.m
 12. The PN-142 ticket thread is harness-owned and outside the agent-readable files. Only Context management supplies it. PROJECT.md stays readable by every preset.
 13. Held-out checks are presenter-only. Never return them to the agent in a tool result, prompt or handoff. `run_checks` and the completion gate use the visible tier only.
 14. Production is the published copy when one exists, otherwise the pristine fixture. Nothing reaches it except through `publish()`.
-15. A forced reset (`resetAfterCalls`) happens at the same call for every preset and is part of the evaluation grouping. Runs from v1 to v3 keep their recorded behavior and labels. No live v4 evidence exists until a real run records it; never pool v2/v3 evidence with v4.
+15. A forced reset happens at the same call (`resetAfterCalls`) or at the same point in the work (`resetAfterFirstEdit`, right after the first file edit) for every preset and is part of the evaluation grouping. Runs from v1 to v3 keep their recorded behavior and labels. No live v4 evidence exists until a real run records it; never pool v2/v3 evidence with v4.
 16. The harness builder page (see [the builder design](docs/BUILDER.md)) shows how a harness is built one component at a time from recorded real runs. Loop-only runs (`loopOnly: true`, no tools) and model-only requests (`POST /api/model/task-only`) are builder evidence: same task text and budgets, never compared with Minimal or Engineered in the dashboard comparison or ladder. The page never animates an invented run; a missing step says so.
 
 ## Verification and evidence

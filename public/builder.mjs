@@ -1,7 +1,9 @@
-// Harness builder page (docs/BUILDER.md, work package B). Every "proof" on this
-// page is derived from a recorded run in the builder recording; nothing is
-// animated, invented or pooled. The pure functions below are exported for tests;
-// the DOM code at the bottom runs only in a browser.
+// Harness builder page (docs/BUILDER.md, work packages B and E). Every "proof" on
+// this page is derived from a real run: the recorded one from the builder
+// recording, or a live run the presenter started on this page (package E), kept
+// in page memory only and never written to the recording. Nothing is animated,
+// invented or pooled. The pure functions below are exported for tests; the DOM
+// code at the bottom runs only in a browser.
 import { COMPONENTS } from './anatomy.mjs';
 import { productionBanner, promptInputs } from './lesson.mjs';
 
@@ -407,11 +409,13 @@ export function modelOnlyActivity(record) {
 // ---- Footer facts and highlights ----
 export function footerFacts(source, recording) {
   if (!source) return null;
+  const live = !!source.live && !source.live.pending;
+  const note = live ? liveNote(source.live.startedAt) : RECORDED_NOTE;
   if (source.run) {
     const run = source.run;
-    return { kind: 'run', runId: run.id, shortId: shortId(run.id), date: run.createdAt || run.startedAt || null, model: run.provider?.model || recording?.model || 'Unknown model', status: run.status, statusLabel: statusLabel(run.status), calls: run.usage?.calls ?? source.calls ?? null, note: RECORDED_NOTE };
+    return { kind: 'run', runId: run.id, shortId: shortId(run.id), date: run.createdAt || run.startedAt || null, model: run.provider?.model || recording?.model || 'Unknown model', status: run.status, statusLabel: statusLabel(run.status), calls: run.usage?.calls ?? source.calls ?? null, note, live };
   }
-  if (typeof source.text === 'string') return { kind: 'request', runId: source.id, shortId: shortId(source.id), date: source.at || null, model: source.model || recording?.model || 'Unknown model', status: source.status, statusLabel: statusLabel(source.status), calls: 1, note: RECORDED_NOTE };
+  if (typeof source.text === 'string') return { kind: 'request', runId: source.id, shortId: shortId(source.id), date: source.at || null, model: source.model || recording?.model || 'Unknown model', status: source.status, statusLabel: statusLabel(source.status), calls: 1, note, live };
   return null;
 }
 const count = (run, test) => (run?.events || []).filter(test).length;
@@ -427,7 +431,8 @@ function stepHighlights(stepId, entry) {
     case 2: {
       const probe = (run.events || []).findLast(e => actorOf(e) === 'probe');
       const rejected = probe && (probe.result?.error || /reject|outside|not allowed|denied/i.test(JSON.stringify(probe.result ?? '')));
-      return [`${plural(tool('read_file'), 'file read')}, ${plural(tool('write_file'), 'file write')}, ${plural(tool('browser_action'), 'browser action')}`, probe ? `Write outside the sandbox: ${rejected ? 'rejected' : 'see the recorded result'} (presenter-triggered probe, not a model action)` : `Write outside the sandbox: ${NOT_RECORDED.toLowerCase()}`, stopLine];
+      const untested = entry.live ? 'Write outside the sandbox: not tested yet (your action, once the run has stopped)' : `Write outside the sandbox: ${NOT_RECORDED.toLowerCase()}`;
+      return [`${plural(tool('read_file'), 'file read')}, ${plural(tool('write_file'), 'file write')}, ${plural(tool('browser_action'), 'browser action')}`, probe ? `Write outside the sandbox: ${rejected ? 'rejected' : 'see the recorded result'} (presenter-triggered probe, not a model action)` : untested, stopLine];
     }
     case 3: case 4: {
       const kind = stepId === 3 ? 'instructions' : 'context';
@@ -449,7 +454,8 @@ function stepHighlights(stepId, entry) {
     case 7: {
       const waiting = (run.events || []).find(e => e.kind === 'permission' && e.title === 'Awaiting explicit approval');
       const files = (run.changes || []).map(c => c.file);
-      return [waiting ? 'The agent stopped and waited for approval.' : 'No approval wait was recorded.', run.appliedRevision ? 'Production changed only after approval.' : 'Still waiting for approval: production unchanged.', files.length ? `Files changed: ${files.join(', ')}` : 'Files changed: none recorded'];
+      const active = isActiveRun(run);
+      return [waiting ? 'The agent stopped and waited for approval.' : active ? 'The agent is still working.' : 'No approval wait was recorded.', run.appliedRevision ? 'Production changed only after approval.' : run.status === 'awaiting_approval' ? 'Still waiting for approval: production unchanged.' : 'Nothing published: production unchanged.', files.length ? `Files changed: ${files.join(', ')}` : active ? 'Files changed: shown when the agent stops' : 'Files changed: none recorded'];
     }
     default: return [];
   }
@@ -486,6 +492,7 @@ export function carriedText(carried) {
 }
 function memoryHighlights(slot, entry) {
   const label = slot === 'withMemory' ? 'With memory' : 'Without memory';
+  if (entry?.live?.pending) return [`${label}: ${PENDING_TEXT.toLowerCase()}`];
   const run = entry?.run;
   if (!run) return [`${label}: ${NOT_RECORDED}`];
   const events = run.events || [];
@@ -493,6 +500,11 @@ function memoryHighlights(slot, entry) {
   const calls = run.usage?.calls ?? null;
   // A run that finishes before the reset point never resets. Say so instead of implying a cut-off.
   if (!reset) {
+    if (isActiveRun(run)) return [`${label}: running, ${plural(calls ?? 0, 'call')} so far; not cut off yet.`];
+    if (run.resetAfterFirstEdit === true) {
+      const edited = events.some(e => e.kind === 'edit');
+      return [`${label}: ${run.status === 'completed' || run.status === 'awaiting_approval' ? `finished in ${plural(calls ?? 0, 'call')}` : `stopped (${run.status}) after ${plural(calls ?? 0, 'call')}`}${edited ? ' before the reset after its first file edit could happen' : ' without editing a file'}, so it never reset and had no fresh session.`];
+    }
     const point = run.resetAfterCalls ?? reset?.resetAfterCalls ?? null;
     return [`${label}: ${run.status === 'completed' || run.status === 'awaiting_approval' ? `finished in ${plural(calls ?? 0, 'call')}` : `stopped (${run.status}) after ${plural(calls ?? 0, 'call')}`}${point ? `, ${calls != null && calls < point ? 'before' : 'at'} the reset point (call ${point})` : ''}, so it never reset and had no fresh session.`];
   }
@@ -510,17 +522,55 @@ function memoryHighlights(slot, entry) {
 }
 // How the run ended after the cut-off, from its recorded status only.
 function sessionOutcome(label, run, calls) {
+  const line = outcomeLine(label, run, calls);
+  if (isActiveRun(run)) return line;
+  // An edit after the agent's last check was never checked by the agent. The presenter line shows its result.
+  const checked = lastAgentCheckRevision(run);
+  return checked && run.revision && checked !== run.revision ? `${line} Its last edit came after its last check and was never checked.` : line;
+}
+function outcomeLine(label, run, calls) {
   const requested = (run.events || []).some(e => e.kind === 'tool' && e.tool === 'request_completion');
+  if (isActiveRun(run)) return `${label}, after the cut-off: still running, ${plural(calls ?? 0, 'call')} so far.`;
   if (run.status === 'completed' || run.status === 'awaiting_approval') return `${label}, after the cut-off: ${run.status === 'completed' ? 'completed' : 'reached the approval boundary'} after ${plural(calls ?? 0, 'call')} in total.`;
   if (run.status === 'budget_exceeded') return `${label}, after the cut-off: stopped at its budget after ${plural(calls ?? 0, 'call')} in total${requested ? '' : ' without requesting completion'}. A handoff carries state; it does not make the model stop.`;
+  if (run.status === 'failed') {
+    const reason = failureReason(run);
+    return `${label}, after the cut-off: failed after ${plural(calls ?? 0, 'call')} in total${reason ? ` (${reason})` : ''}.`;
+  }
   return `${label}, after the cut-off: ${run.status} after ${plural(calls ?? 0, 'call')} in total.`;
+}
+// The last error event, first 80 characters. It is called a provider error only when
+// the runner recorded that the model request itself threw (the usage-unavailable event
+// written in callModel's catch immediately precedes the error).
+export function failureReason(run) {
+  const events = run?.events || [];
+  const index = events.findLastIndex(e => e.kind === 'error');
+  if (index < 0) return null;
+  const detail = String(events[index].detail ?? '').trim().slice(0, 80);
+  if (!detail) return null;
+  const provider = events[index - 1]?.kind === 'usage' && events[index - 1]?.title === 'Request token usage unavailable';
+  return `${provider ? 'provider error' : 'error'}: ${detail}`;
+}
+// The source revision of the agent's own last run_checks (never the harness's
+// completion assessment or a presenter evaluation), or null when it never checked.
+export function lastAgentCheckRevision(run) {
+  const events = run?.events || [];
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.kind === 'tool_result' && e.tool === 'run_checks' && typeof e.result?.revision === 'string') return e.result.revision;
+    if (isCheckResult(e) && typeof e.checks?.revision === 'string') {
+      const start = events.slice(0, i).findLast(x => x.kind === 'verification' && !isCheckResult(x));
+      if (start?.title !== 'Independent final browser assessment') return e.checks.revision;
+    }
+  }
+  return null;
 }
 export function proofSummary(stepId, recording) {
   const entry = stepEntry(recording, stepId);
   if (!isRecorded(recording, stepId)) return { recorded: false, message: NOT_RECORDED, footers: [], highlights: [] };
   if (stepId === 6) {
     const slots = [['withoutMemory', 'Without memory'], ['withMemory', 'With memory']];
-    return { recorded: true, footers: slots.map(([slot, label]) => ({ label, slot, facts: footerFacts(entry[slot], recording) })), highlights: slots.flatMap(([slot]) => memoryHighlights(slot, entry[slot])) };
+    return { recorded: true, footers: slots.map(([slot, label]) => ({ label, slot, pending: !!entry[slot]?.live?.pending, facts: footerFacts(entry[slot], recording) })), highlights: slots.flatMap(([slot]) => memoryHighlights(slot, entry[slot])) };
   }
   return { recorded: true, footers: [{ label: null, facts: footerFacts(entry, recording) }], highlights: stepHighlights(stepId, entry) };
 }
@@ -551,19 +601,26 @@ export function phoneViews(stepId, recording, previewOrigin = null, formatTime =
   const sets = stepId === 6 ? [['Without memory', entry?.withoutMemory], ['With memory', entry?.withMemory]] : [[null, entry]];
   const groups = sets.map(([label, item]) => {
     const run = item?.run;
-    if (!run) return { label, missing: true, phones: [] };
+    if (!run) return { label, missing: true, pending: !!item?.live?.pending, phones: [] };
+    // A live run from this page: the sandbox URL carries the source revision so the
+    // phone reloads only when a file actually changed.
+    const liveRun = !!item.live;
     const live = !!(previewOrigin && recording?.present?.[run.id]);
-    const sandboxUrl = `${previewOrigin}/preview/${encodeURIComponent(run.id)}/index.html`;
+    const sandboxUrl = `${previewOrigin}/preview/${encodeURIComponent(run.id)}/index.html${liveRun ? `?rev=${encodeURIComponent(run.revision || 'original')}` : ''}`;
     const productionUrl = `${previewOrigin}/production/${encodeURIComponent(run.id)}/index.html?rev=${encodeURIComponent(run.appliedRevision || 'original')}`;
-    const phones = [{ role: 'sandbox', label: 'SANDBOX', caption: 'The agent\'s working copy.', live, src: live ? sandboxUrl : assetUrl(item.screens?.sandbox) }];
-    if (stepId === 7) {
+    const missingText = liveRun ? 'Live preview unavailable' : undefined;
+    const phones = [{ role: 'sandbox', label: 'SANDBOX', caption: 'The agent\'s working copy.', live, src: live ? sandboxUrl : assetUrl(item.screens?.sandbox), missingText }];
+    if (stepId === 7 && liveRun) {
+      // Live: one production phone whose banner and build change when you approve.
+      phones.push({ role: 'production', label: 'PRODUCTION', banner: productionBanner(run, formatTime), live, src: live ? productionUrl : null, missingText });
+    } else if (stepId === 7) {
       const before = stateBeforeApproval(run);
       phones.push({ role: 'production-before', label: 'PRODUCTION · BEFORE', banner: before ? productionBanner(before, formatTime) : { state: 'original', text: NOT_RECORDED }, live: false, src: assetUrl(item.screens?.productionBefore) });
       phones.push(run.appliedRevision
         ? { role: 'production-after', label: 'PRODUCTION · AFTER', banner: productionBanner(run, formatTime), live, src: live ? productionUrl : assetUrl(item.screens?.productionAfter) }
         : { role: 'production-after', label: 'PRODUCTION · AFTER', banner: { state: 'original', text: `${NOT_RECORDED}: no approval recorded.` }, live: false, src: null });
-    } else phones.push({ role: 'production', label: 'PRODUCTION', banner: productionBanner(run, formatTime), live, src: live ? productionUrl : assetUrl(item.screens?.production) });
-    return { label, missing: false, runId: run.id, phones };
+    } else phones.push({ role: 'production', label: 'PRODUCTION', banner: productionBanner(run, formatTime), live, src: live ? productionUrl : assetUrl(item.screens?.production), missingText });
+    return { label, missing: false, liveRun, runId: run.id, phones };
   });
   return { note: null, groups };
 }
@@ -579,6 +636,96 @@ export function changeSummary(run) {
 export function parseStep(hash) {
   const match = /^#step-([0-7])$/.exec(String(hash || ''));
   return match ? Number(match[1]) : 0;
+}
+// What to look for. Two steps depend on the run shown: a live step 2 has not
+// been probed yet, and step 6 may reset by call count or after the first edit.
+export function stepLook(stepId, recording) {
+  const step = STEPS[stepId];
+  if (stepId === 2 && stepEntry(recording, 2)?.live) return 'Look for real file reads and writes in the sandbox. When the run has stopped, use "Test the sandbox boundary": you, not the model, try a write outside the sandbox.';
+  if (stepId === 6) {
+    const entry = stepEntry(recording, 6);
+    const runs = [entry?.withoutMemory?.run, entry?.withMemory?.run].filter(Boolean);
+    if (runs.length && runs.every(run => run.resetAfterFirstEdit === true)) return 'Both runs were set to reset right after their first file edit. Compare what each fresh session started with, and how each run ended.';
+  }
+  return step.look;
+}
+
+// ======================= Live mode (work package E) =======================
+// A live run is a real run started from this page. It replaces the recorded run
+// for its step in page memory only, until the page is reloaded.
+export const MAX_CALLS = 24;
+export const POLL_MS = 1500;
+export const BUSY_MESSAGE = 'This run is busy. Pause it and wait for the current operation to finish.';
+export const PENDING_TEXT = 'Starts after the run without memory stops.';
+const FEATURE_KEYS = ['instructions', 'context', 'memory', 'verification', 'permissions'];
+const featureSet = (...enabled) => Object.fromEntries(FEATURE_KEYS.map(key => [key, enabled.includes(key)]));
+export const clock = value => { const d = new Date(value); return value && !Number.isNaN(d.getTime()) ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''; };
+export const liveNote = at => `Live run. Started at ${clock(at) || 'an unrecorded time'}.`;
+export const isActiveRun = run => !!run && (['running', 'pausing'].includes(run.status) || !!run.activeSessionStartedAt);
+// The create body per step: the same values scripts/record-builder.mjs uses,
+// except that both step 6 runs reset right after their first file edit.
+export function liveStepConfig(stepId) {
+  const id = Number(stepId);
+  if (!Number.isInteger(id) || id < 0 || id > 7) throw new Error(`Unknown step ${stepId}.`);
+  if (id === 0) return { step: 0, modelOnly: true, endpoint: '/api/model/task-only', body: {}, runs: [], probe: false, approval: false };
+  const step5 = ['instructions', 'context', 'verification'];
+  const runs = {
+    1: [[null, { mode: 'minimal', loopOnly: true }]],
+    2: [[null, { mode: 'minimal', features: featureSet() }]],
+    3: [[null, { mode: 'minimal', features: featureSet('instructions') }]],
+    4: [[null, { mode: 'minimal', features: featureSet('instructions', 'context') }]],
+    5: [[null, { mode: 'minimal', features: featureSet(...step5) }]],
+    6: [['withoutMemory', { mode: 'minimal', features: featureSet(...step5), resetAfterFirstEdit: true }], ['withMemory', { mode: 'minimal', features: featureSet(...step5, 'memory'), resetAfterFirstEdit: true }]],
+    7: [[null, { mode: 'engineered' }]]
+  }[id];
+  return { step: id, modelOnly: false, endpoint: '/api/runs', runs: runs.map(([slot, body]) => ({ slot, body: { ...body, scenario: 'draft' } })), probe: id === 2, approval: id === 7 };
+}
+// A new recording-shaped object with the live run (or, for step 0, the
+// model-only record) in place of the recorded one, marked `live`. A null run
+// on step 6 marks that slot as waiting for its turn. Never mutates the input.
+export function mergeLiveRun(recording, stepId, slot, run) {
+  const base = recording && typeof recording === 'object' ? recording : { steps: {}, present: {} };
+  const next = { ...base, steps: { ...(base.steps || {}) }, present: { ...(base.present || {}) }, live: { ...(base.live || {}), [`step${stepId}`]: true } };
+  if (stepId === 0) {
+    next.steps.step0 = run ? { ...run, live: { startedAt: run.at ?? null } } : base.steps?.step0;
+    return next;
+  }
+  const entry = run ? { runId: run.id, status: run.status, calls: run.usage?.calls ?? 0, screens: null, run, live: { startedAt: run.startedAt || run.createdAt || null } } : { run: null, live: { pending: true } };
+  if (run?.id) next.present[run.id] = true;
+  if (stepId === 6) next.steps.step6 = { ...(base.steps?.step6 || {}), [slot]: entry };
+  else next.steps[`step${stepId}`] = entry;
+  return next;
+}
+// One line for the status bar: status, call N of 24, reported tokens, elapsed seconds, run id.
+export function liveStatusLine(source) {
+  if (!source) return null;
+  if (!Array.isArray(source.events)) {
+    // The step 0 model-only record: one request, no run.
+    const tokens = (source.usage?.input ?? 0) + (source.usage?.output ?? 0);
+    const unreported = source.usageReported === false ? 1 : 0;
+    const tokensText = unreported ? 'tokens not reported' : `${tokens.toLocaleString('en-US')} reported tokens`;
+    return { kind: 'request', status: source.status, statusLabel: statusLabel(source.status), calls: 1, maxCalls: 1, tokens, unreported, seconds: null, runId: source.id, shortId: shortId(source.id), text: [statusLabel(source.status), '1 request, no tools', tokensText, `request ${shortId(source.id)}`].join(' · ') };
+  }
+  const calls = source.usage?.calls ?? 0;
+  const tokens = (source.usage?.input ?? 0) + (source.usage?.output ?? 0);
+  const unreported = source.usage?.unreportedRequests || 0;
+  const seconds = Math.max(0, Math.round((Number(source.elapsedMs) || 0) / 1000));
+  const tokensText = `${tokens.toLocaleString('en-US')} reported tokens${unreported ? ` (${plural(unreported, 'request')} without usage)` : ''}`;
+  return { kind: 'run', status: source.status, statusLabel: statusLabel(source.status), calls, maxCalls: MAX_CALLS, tokens, unreported, seconds, runId: source.id, shortId: shortId(source.id), text: [statusLabel(source.status), `call ${calls} of ${MAX_CALLS}`, tokensText, `${seconds} s`, `run ${shortId(source.id)}`].join(' · ') };
+}
+// The presenter evaluation recorded on a run (both tiers), from its own event.
+export function presenterEvaluation(run) {
+  const event = (run?.events || []).findLast(e => e.kind === 'checks' && e.phase === 'end' && e.result);
+  if (!event) return null;
+  const tier = result => result ? { passed: result.passed, total: result.total, revision: result.revision ?? null, results: (result.results || []).map(item => ({ name: item.name, passed: !!item.passed, detail: String(item.detail ?? '') })) } : null;
+  return { at: event.at ?? null, revision: event.result.revision ?? null, visible: tier(event.result), heldOut: tier(event.result.heldOut) };
+}
+// The presenter's boundary probe on a run: what the harness answered, verbatim.
+export function probeResult(run) {
+  const event = (run?.events || []).findLast(e => e.kind === 'permission' && e.title === PROBE_TITLE);
+  if (!event) return null;
+  const error = event.result && typeof event.result === 'object' && typeof event.result.error === 'string' ? event.result.error : null;
+  return { at: event.at ?? null, rejected: !!error, error, result: event.result ?? null };
 }
 
 // ======================= DOM (browser only) =======================
@@ -601,7 +748,8 @@ if (typeof document !== 'undefined') {
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7v1"/>',
     layout: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18M9 9h12"/>',
     arrowLeft: '<path d="M20 12H4m6-6-6 6 6 6"/>',
-    arrowRight: '<path d="M4 12h16m-6-6 6 6-6 6"/>'
+    arrowRight: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
+    code: '<path d="m8 5-6 7 6 7m8-14 6 7-6 7M14 3l-4 18"/>'
   };
   const svg = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.info}</svg>`;
   const eventIcon = kind => ({ instructions: 'file', context: 'folder', tool: 'terminal', tool_error: 'error', edit: 'edit', checks: 'checkCircle', verification: 'checkCircle', gate: 'shield', browser: 'layout', memory: 'layers', permission: 'shield', budget: 'clock', reset: 'refresh', observation: 'refresh', model: 'sparkles', assistant: 'sparkles', run: 'play', error: 'error' }[kind] || 'info');
@@ -609,20 +757,25 @@ if (typeof document !== 'undefined') {
   const date = value => { const d = new Date(value); return value && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown date'; };
 
   let recording = null, loadState = 'loading', previewOrigin = null, current = 0;
+  // Live mode. providerState: null while unknown, then { configured, error }.
+  let providerState = null;
+  const live = {};
+  let shown = { step: null, live: '', proof: '', phones: '' };
 
   const segmentsHTML = segments => segments.map(s => (s.added ? `<mark class="req-new">${escapeHTML(s.text)}</mark>` : escapeHTML(s.text))).join('');
   const notRecorded = extra => `<div class="not-recorded" data-not-recorded><strong>${NOT_RECORDED}</strong><span>${escapeHTML(extra || 'This step has no recorded run on this server. The problem and the component are still shown.')}</span></div>`;
+  const pendingBlock = () => `<div class="not-recorded live-pending" data-pending><strong>Waiting</strong><span>${escapeHTML(PENDING_TEXT)}</span></div>`;
   function activityHTML(excerpt, emptyText = 'No activity recorded.') {
     if (!excerpt.rows.length) return `<p class="builder-empty">${escapeHTML(emptyText)}</p>`;
-    return `<div class="activity-list builder-activity">${excerpt.rows.map(row => row.elided
+    return `<div class="activity-list builder-activity" data-total="${excerpt.total}">${excerpt.rows.map(row => row.elided
       ? `<div class="event-elided" data-elided="${row.elided}">${row.elided} more ${row.elided === 1 ? 'line' : 'lines'}</div>`
       : `<div class="event-row" data-kind="${escapeHTML(row.kind)}" data-actor="${escapeHTML(row.actor)}"><span class="event-icon ${escapeHTML(row.kind)}">${svg(eventIcon(row.kind))}</span><span class="event-body"><span class="event-meta"><strong>${escapeHTML(row.title)}</strong><time>${escapeHTML(time(row.at))}</time></span>${row.detail ? `<p>${escapeHTML(row.detail)}</p>` : ''}<span class="event-label${row.actor === 'presenter' || row.actor === 'probe' ? ' presenter-label' : ''}">${escapeHTML(row.label)}</span></span></div>`).join('')}</div>`;
   }
   const shortReply = excerpt => ({ ...excerpt, rows: excerpt.rows.map(row => ({ ...row, detail: `${row.detail.length.toLocaleString('en-US')} characters of text, shown in full below.` })) });
   function footerHTML(footer) {
     const f = footer.facts;
-    if (!f) return `<p class="proof-footer">${footer.label ? `<strong>${escapeHTML(footer.label)}</strong> · ` : ''}${NOT_RECORDED}</p>`;
-    return `<p class="proof-footer" data-footer>${footer.label ? `<strong>${escapeHTML(footer.label)}</strong>` : ''}<span title="${escapeHTML(f.runId)}">${f.kind === 'run' ? 'Run' : 'Request'} ${escapeHTML(f.shortId)}</span><span>${escapeHTML(date(f.date))}</span><span>${escapeHTML(f.model)}</span><span>${escapeHTML(f.statusLabel)}</span><span>${f.calls == null ? '? calls' : escapeHTML(plural(f.calls, 'model call'))}</span><span class="recorded-note">${escapeHTML(f.note)}</span></p>`;
+    if (!f) return `<p class="proof-footer">${footer.label ? `<strong>${escapeHTML(footer.label)}</strong> · ` : ''}${footer.pending ? 'Live run not started yet.' : NOT_RECORDED}</p>`;
+    return `<p class="proof-footer" data-footer data-live="${f.live ? 'true' : 'false'}">${footer.label ? `<strong>${escapeHTML(footer.label)}</strong>` : ''}<span title="${escapeHTML(f.runId)}">${f.kind === 'run' ? 'Run' : 'Request'} ${escapeHTML(f.shortId)}</span><span>${escapeHTML(date(f.date))}</span><span>${escapeHTML(f.model)}</span><span>${escapeHTML(f.statusLabel)}</span><span>${f.calls == null ? '? calls' : escapeHTML(plural(f.calls, 'model call'))}</span><span class="${f.live ? 'live-note' : 'recorded-note'}">${escapeHTML(f.note)}</span></p>`;
   }
   function requestHTML(view) {
     if (!view) return '';
@@ -631,8 +784,92 @@ if (typeof document !== 'undefined') {
   function phoneHTML(phone) {
     const screen = phone.live
       ? `<iframe title="${escapeHTML(phone.label)} phone (live)" sandbox="allow-scripts allow-same-origin allow-forms" src="${escapeHTML(phone.src)}"></iframe>`
-      : phone.src ? `<img class="phone-screen" alt="${escapeHTML(phone.label)} phone, recorded screenshot" src="${escapeHTML(phone.src)}">` : `<div class="phone-missing">${NOT_RECORDED}</div>`;
+      : phone.src ? `<img class="phone-screen" alt="${escapeHTML(phone.label)} phone, recorded screenshot" src="${escapeHTML(phone.src)}">` : `<div class="phone-missing">${escapeHTML(phone.missingText || NOT_RECORDED)}</div>`;
     return `<section class="phone-column builder-phone${phone.role.startsWith('production') ? ' production' : ''}" data-phone="${escapeHTML(phone.role)}" data-live="${phone.live}"><div class="phone-caption"><span class="phone-label">${escapeHTML(phone.label)}</span>${phone.banner ? `<span class="production-banner" data-state="${escapeHTML(phone.banner.state)}">${escapeHTML(phone.banner.text)}</span>` : `<span class="phone-caption-text">${escapeHTML(phone.caption || '')}</span>`}<span class="phone-source">${phone.live ? 'Live copy on this server' : phone.src ? 'Recorded screenshot' : ''}</span></div><div class="phone-slot"><div class="phone-shell"><div class="phone-top"><span>9:41</span><div class="dynamic-island"></div><span></span></div>${screen}<div class="phone-home"><span></span></div></div></div></section>`;
+  }
+
+  // ---- Live state (page memory only; never written to the recording) ----
+  const slotKey = slot => slot || 'main';
+  const isActive = state => !!state && ['starting', 'running', 'evaluating'].includes(state.phase);
+  const anyActive = () => Object.values(live).some(isActive);
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  async function api(route, body) {
+    const options = body === undefined ? { cache: 'no-store' } : { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Harness-Client': 'local' }, body: JSON.stringify(body) };
+    const response = await fetch(route, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || data.message || `Request failed (${response.status})`);
+    return data;
+  }
+  // The recording the panels render: recorded runs with every live run merged in.
+  function viewRecording() {
+    let view = recording;
+    for (const [id, state] of Object.entries(live)) {
+      const stepId = Number(id);
+      if (stepId === 0) { if (state.record) view = mergeLiveRun(view, 0, null, state.record); continue; }
+      for (const [key, run] of Object.entries(state.slots)) view = mergeLiveRun(view, stepId, key === 'main' ? null : key, run && stepId === 7 && state.changes ? { ...run, changes: state.changes } : run);
+    }
+    return view;
+  }
+  const slotLabel = key => ({ withoutMemory: 'Without memory', withMemory: 'With memory' }[key] || null);
+  function liveHint(stepId) {
+    if (stepId === 0) return 'Sends one real, billable request to the configured model, with no tools.';
+    if (stepId === 6) return 'Starts two real runs, one after the other: without memory, then with memory. Each is cut off right after its first file edit. Billable model calls, up to 24 per run.';
+    return 'Starts a fresh run with exactly this step\'s harness. Billable model calls, up to 24.';
+  }
+  function statusLines(stepId, state) {
+    if (!state) return [];
+    if (stepId === 0) {
+      if (state.phase === 'starting') return [`Sending one request to the model · waiting ${Math.max(0, Math.round((Date.now() - state.clientStartedAt) / 1000))} s`];
+      return state.record ? [liveStatusLine(state.record).text] : [];
+    }
+    if (state.phase === 'starting') return ['Creating a fresh workspace and starting the run…'];
+    return Object.entries(state.slots).map(([key, run]) => {
+      const label = slotLabel(key);
+      const text = run ? liveStatusLine(run).text : PENDING_TEXT;
+      return [key, `${label ? `${label}: ` : ''}${text}`];
+    });
+  }
+  function liveBarHTML(stepId) {
+    if (!providerState) return '';
+    if (!providerState.configured) {
+      const reason = providerState.error ? `The server state could not be read (${providerState.error}).` : 'No model connection is configured on this server.';
+      return `<p class="live-unavailable" data-live-unavailable>${svg('info')}<span>Live runs are off. ${escapeHTML(reason)} Connect a model in the dashboard and reload this page to run a step live. Until then each step shows its recorded run.</span></p>`;
+    }
+    const state = live[stepId];
+    const active = isActive(state);
+    const lines = statusLines(stepId, state).map(line => Array.isArray(line) ? line : ['main', line]);
+    const errors = [state?.error, state?.pollError].filter(Boolean);
+    return `<div class="live-bar" data-live-bar><div class="live-row"><button class="button button-primary" type="button" data-action="run-live" data-step="${stepId}"${active ? ' disabled' : ''}>${svg('play')}<span>Run this step live</span></button><span class="live-hint">${escapeHTML(liveHint(stepId))}</span></div>${lines.map(([key, line]) => `<p class="live-status" data-live-status="${escapeHTML(key)}"><span class="live-dot${active ? ' on' : ''}" aria-hidden="true"></span>${escapeHTML(line)}</p>`).join('')}${errors.map(error => `<p class="live-error" data-live-error role="alert">${escapeHTML(error)}</p>`).join('')}</div>`;
+  }
+  // Presenter evaluation of a live run: both tiers, labelled as your action.
+  function evaluationHTML(state, key, run) {
+    const evaluation = state?.evaluation?.[key];
+    const result = presenterEvaluation(run);
+    const label = `<span class="tiny-label">YOUR EVALUATION${slotLabel(key) ? ` · ${slotLabel(key).toUpperCase()}` : ''} · PRESENTER ACTION, NOT THE MODEL</span>`;
+    let body;
+    if (evaluation?.state === 'error') body = `<p class="live-error" role="alert">${escapeHTML(evaluation.error)}</p>`;
+    else if (evaluation?.state === 'running') body = '<p class="builder-empty">Running the independent browser checks on this run\'s sandbox…</p>';
+    else if (result && evaluation?.state === 'done') {
+      const tier = (title, data) => data ? `<div class="eval-tier"><strong>${escapeHTML(title)}: ${data.passed}/${data.total} passed</strong><ul class="eval-results">${data.results.map(item => `<li data-passed="${item.passed}"><span>${item.passed ? 'PASS' : 'FAIL'}</span> ${escapeHTML(item.name)}</li>`).join('')}</ul></div>` : `<div class="eval-tier"><strong>${escapeHTML(title)}: not measured</strong></div>`;
+      body = `<p class="eval-intro">You ran the checks after the run stopped, on source revision ${escapeHTML(result.revision || 'unknown')}. This did not change what the agent did.</p><div class="eval-tiers">${tier('Checks the agent can run', result.visible)}${tier('Held-out checks, never shown to the agent', result.heldOut)}</div>`;
+    } else body = '<p class="builder-empty">Runs when the run stops.</p>';
+    return `<div class="proof-block presenter-eval" data-evaluation="${escapeHTML(key)}" data-state="${escapeHTML(evaluation?.state || 'waiting')}">${label}${body}</div>`;
+  }
+  function probeHTML(state, run) {
+    const probe = probeResult(run);
+    const busy = state.probe?.state === 'running' || isActive(state);
+    let result = '';
+    if (probe) result = `<p class="probe-result" data-probe-result="${probe.rejected ? 'rejected' : 'not-rejected'}"><strong>${probe.rejected ? 'Rejected.' : 'Not rejected.'}</strong> The harness answered: ${escapeHTML(probe.rejected ? probe.error : JSON.stringify(probe.result))}</p>`;
+    if (state.probe?.state === 'error') result += `<p class="live-error" role="alert">${escapeHTML(state.probe.error)}</p>`;
+    return `<div class="proof-block live-action" data-probe><span class="tiny-label">YOUR ACTION, NOT THE MODEL'S</span><p class="eval-intro">Ask the harness to write <code>../protected-checks.mjs</code>, a file outside this run's sandbox.</p><button class="button button-secondary" type="button" data-action="probe"${busy ? ' disabled' : ''}>${svg('shield')}<span>Test the sandbox boundary</span></button>${result}</div>`;
+  }
+  function approvalHTML(state, run) {
+    const busy = state.approval?.state === 'running' || isActive(state);
+    const waiting = run.status === 'awaiting_approval';
+    const intro = waiting ? 'The agent stopped. Production waits for you: read the change, then decide.' : run.appliedRevision ? `You approved it. Production was updated at ${time(run.appliedAt)}.` : `Status: ${statusLabel(run.status)}. Nothing is waiting for approval.`;
+    const error = state.approval?.state === 'error' ? `<p class="live-error" role="alert">${escapeHTML(state.approval.error)}</p>` : '';
+    const buttons = `<div class="live-actions"><button class="button button-secondary" type="button" data-action="view-diff" data-run="${escapeHTML(run.id)}">${svg('code')}<span>View diff</span></button>${waiting ? `<button class="button button-primary" type="button" data-action="approve"${busy ? ' disabled' : ''}>${svg('checkCircle')}<span>Approve and publish</span></button>` : ''}</div>`;
+    return `<div class="proof-block live-action" data-approval data-status="${escapeHTML(run.status)}"><span class="tiny-label">YOUR DECISION, NOT THE MODEL'S</span><p class="eval-intro">${escapeHTML(intro)}</p>${waiting || run.appliedRevision ? buttons : ''}${error}</div>`;
   }
 
   function renderDiagram(stepId) {
@@ -643,49 +880,87 @@ if (typeof document !== 'undefined') {
     if (!code) { $('#code').innerHTML = '<figcaption>No code is added at this step.</figcaption>'; return; }
     $('#code').innerHTML = `<figcaption><strong>${escapeHTML(code.file)}</strong> · ${escapeHTML(code.caption)}</figcaption><pre><code>${code.parts.map(part => part.map(escapeHTML).join('\n')).join('\n<span class="code-gap">⋯</span>\n')}</code></pre>`;
   }
-  function renderProof(step) {
-    const proof = $('#proof');
-    const summary = proofSummary(step.id, recording);
-    const intro = `<p class="proof-look">${escapeHTML(step.look)}</p>`;
-    if (!summary.recorded) {
-      proof.innerHTML = intro + notRecorded(loadState === 'missing' ? 'No builder recording was found on this server. Record one with scripts/record-builder.mjs.' : loadState === 'error' ? 'The builder recording could not be loaded.' : undefined);
-      return;
-    }
-    const view = requestView(recording, step.id);
+  function renderLive(step) {
+    const html = liveBarHTML(step.id);
+    if (html === shown.live) return;
+    shown.live = html;
+    $('#live').innerHTML = html;
+  }
+  function proofHTML(step, view) {
+    const summary = proofSummary(step.id, view);
+    const intro = `<p class="proof-look">${escapeHTML(stepLook(step.id, view))}</p>`;
+    if (!summary.recorded) return { html: intro + notRecorded(loadState === 'missing' ? 'No builder recording was found on this server. Record one with scripts/record-builder.mjs.' : loadState === 'error' ? 'The builder recording could not be loaded.' : undefined), view: null };
+    const request = requestView(view, step.id);
     const highlights = `<ul class="proof-highlights">${summary.highlights.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>`;
+    const state = live[step.id];
     let activity;
     if (step.id === 0) {
       // The whole reply, verbatim and scrollable: it can be long, and it is the point of this step.
-      const record = stepEntry(recording, 0);
+      const record = stepEntry(view, 0);
       activity = `<div class="proof-block"><span class="tiny-label">THE REPLY</span>${activityHTML(shortReply(modelOnlyActivity(record)))}<pre class="handoff-text reply-text" tabindex="0" data-reply aria-label="The model's full reply">${escapeHTML(record.text)}</pre></div>`;
     }
     else if (step.id === 6) {
-      const entry = stepEntry(recording, 6);
-      const column = (slot, label) => `<div class="proof-column" data-slot="${slot}"><span class="tiny-label">${escapeHTML(label.toUpperCase())}</span>${entry[slot]?.run ? activityHTML(activityExcerpt(entry[slot].run, 6)) : notRecorded(`The ${label.toLowerCase()} run is not recorded.`)}${footerHTML(summary.footers.find(f => f.slot === slot))}</div>`;
-      const handoff = handoffText(recording);
-      activity = `<div class="proof-columns">${column('withoutMemory', 'Without memory')}${column('withMemory', 'With memory')}</div><div class="proof-block handoff" data-handoff><span class="tiny-label">THE HANDOFF THE FRESH SESSION RECEIVED (WITH MEMORY)</span>${handoff ? `<pre class="handoff-text" tabindex="0">${escapeHTML(handoff.text)}</pre>` : `<p class="builder-empty">${NOT_RECORDED}</p>`}</div>`;
+      const entry = stepEntry(view, 6);
+      const column = (slot, label) => {
+        const item = entry[slot];
+        const body = item?.live?.pending ? pendingBlock() : item?.run ? activityHTML(activityExcerpt(item.run, 6)) : notRecorded(`The ${label.toLowerCase()} run is not recorded.`);
+        const evaluation = item?.live && item.run ? evaluationHTML(state, slot, item.run) : '';
+        return `<div class="proof-column" data-slot="${slot}"><span class="tiny-label">${escapeHTML(label.toUpperCase())}</span>${body}${evaluation}${footerHTML(summary.footers.find(f => f.slot === slot))}</div>`;
+      };
+      const handoff = handoffText(view);
+      activity = `<div class="proof-columns">${column('withoutMemory', 'Without memory')}${column('withMemory', 'With memory')}</div><div class="proof-block handoff" data-handoff><span class="tiny-label">THE HANDOFF THE FRESH SESSION RECEIVED (WITH MEMORY)</span>${handoff ? `<pre class="handoff-text" tabindex="0">${escapeHTML(handoff.text)}</pre>` : `<p class="builder-empty">${entry.withMemory?.live ? 'Not received yet.' : NOT_RECORDED}</p>`}</div>`;
     } else {
-      const run = stepEntry(recording, step.id).run;
-      activity = `<div class="proof-block"><span class="tiny-label">WHAT HAPPENED</span>${activityHTML(activityExcerpt(run, step.id))}</div>`;
+      const entry = stepEntry(view, step.id);
+      const run = entry.run;
+      activity = `<div class="proof-block"><span class="tiny-label">WHAT HAPPENED</span>${activityHTML(activityExcerpt(run, step.id), entry.live ? 'Nothing has happened yet.' : undefined)}</div>`;
+      if (entry.live) {
+        activity += evaluationHTML(state, 'main', run);
+        if (step.id === 2 && !isActiveRun(run) && state?.phase === 'done') activity += probeHTML(state, run);
+        if (step.id === 7 && !isActiveRun(run) && (run.status === 'awaiting_approval' || run.appliedRevision) && state?.phase === 'done') activity += approvalHTML(state, run);
+      }
       if (step.id === 7) {
         const changes = changeSummary(run);
-        activity += `<div class="proof-block" data-changes><span class="tiny-label">WHAT THE PERSON APPROVED</span>${changes.length ? `<ul class="change-list">${changes.map(c => `<li><strong>${escapeHTML(c.file)}</strong> ${c.before} lines before, ${c.after} lines after</li>`).join('')}</ul>` : `<p class="builder-empty">No file changes recorded.</p>`}</div>`;
+        activity += `<div class="proof-block" data-changes><span class="tiny-label">${run.appliedRevision ? 'WHAT THE PERSON APPROVED' : 'WHAT IS WAITING FOR APPROVAL'}</span>${changes.length ? `<ul class="change-list">${changes.map(c => `<li><strong>${escapeHTML(c.file)}</strong> ${c.before} lines before, ${c.after} lines after</li>`).join('')}</ul>` : `<p class="builder-empty">${entry.live && isActiveRun(run) ? 'Shown when the agent stops.' : 'No file changes recorded.'}</p>`}</div>`;
       }
     }
     const footers = step.id === 6 ? '' : summary.footers.map(footerHTML).join('');
-    proof.innerHTML = intro + highlights + requestHTML(view) + activity + footers;
+    return { html: intro + highlights + requestHTML(request) + activity + footers, view: request };
+  }
+  function renderProof(step) {
+    const proof = $('#proof');
+    const view = viewRecording();
+    const { html, view: request } = proofHTML(step, view);
+    if (html === shown.proof) return;
+    // A live update that leaves the request unchanged keeps the reader's scroll
+    // positions; a new step or a new request scrolls to its highlight.
+    const oldRequest = shown.step === step.id ? proof.querySelector('.request-text')?.innerHTML ?? null : null;
+    const kept = [...proof.querySelectorAll('pre[tabindex]')].map(pre => pre.scrollTop);
+    shown.proof = html;
+    proof.innerHTML = html;
+    if (oldRequest !== null && proof.querySelector('.request-text')?.innerHTML === oldRequest) { [...proof.querySelectorAll('pre[tabindex]')].forEach((pre, i) => { if (kept[i] != null) pre.scrollTop = kept[i]; }); return; }
     // The request box is the marks' offset parent (position: relative).
     const marks = [...proof.querySelectorAll('.request-text .req-new')];
-    const mark = (view?.focus && marks.find(item => item.textContent.includes(view.focus))) || marks[0];
+    const mark = (request?.focus && marks.find(item => item.textContent.includes(request.focus))) || marks[0];
     if (mark) $('.request-text', proof).scrollTop = Math.max(0, mark.offsetTop - 24);
   }
   function renderPhones(step) {
     const target = $('#phones');
-    if (!isRecorded(recording, step.id) && step.id !== 0) { target.innerHTML = `<div class="section-heading"><div><span class="panel-kicker">THE TWO PHONES</span><h2>Sandbox and production</h2></div></div>${notRecorded('No phones without a recorded run.')}`; return; }
-    const views = phoneViews(step.id, recording, previewOrigin, time);
-    const heading = `<div class="section-heading"><div><span class="panel-kicker">THE TWO PHONES</span><h2>Sandbox and production</h2></div><span class="subtle-badge">${views.groups.some(g => g.phones.some(p => p.live)) ? 'Live copies of recorded runs' : 'Recorded screenshots'}</span></div>`;
-    if (views.note) { target.innerHTML = `${heading}<p class="phones-note">${escapeHTML(views.note)}</p>`; return; }
-    target.innerHTML = heading + `<div class="phone-groups">${views.groups.map(group => `<div class="phone-group">${group.label ? `<span class="tiny-label">${escapeHTML(group.label.toUpperCase())}</span>` : ''}${group.missing ? notRecorded('This run is not recorded.') : `<div class="phone-row">${group.phones.map(phoneHTML).join('')}</div>`}</div>`).join('')}</div>`;
+    const view = viewRecording();
+    let html;
+    if (!isRecorded(view, step.id) && step.id !== 0) html = `<div class="section-heading"><div><span class="panel-kicker">THE TWO PHONES</span><h2>Sandbox and production</h2></div></div>${notRecorded('No phones without a recorded run.')}`;
+    else {
+      const views = phoneViews(step.id, view, previewOrigin, time);
+      const liveRun = views.groups.some(g => g.liveRun);
+      const badge = liveRun ? 'Live run on this server' : views.groups.some(g => g.phones.some(p => p.live)) ? 'Live copies of recorded runs' : 'Recorded screenshots';
+      const heading = `<div class="section-heading"><div><span class="panel-kicker">THE TWO PHONES</span><h2>Sandbox and production</h2></div><span class="subtle-badge">${badge}</span></div>`;
+      if (views.note) html = `${heading}<p class="phones-note">${escapeHTML(views.note)}</p>`;
+      else html = heading + `<div class="phone-groups">${views.groups.map(group => `<div class="phone-group">${group.label ? `<span class="tiny-label">${escapeHTML(group.label.toUpperCase())}</span>` : ''}${group.pending ? pendingBlock() : group.missing ? notRecorded('This run is not recorded.') : `<div class="phone-row">${group.phones.map(phoneHTML).join('')}</div>`}</div>`).join('')}</div>`;
+    }
+    // Unchanged phones are left alone, so a live iframe reloads only when its source revision changes.
+    if (html === shown.phones) return;
+    shown.phones = html;
+    target.innerHTML = html;
+    watchScreens();
   }
   // A screenshot named in the recording but missing on disk shows a plain placeholder (no inline handlers: the CSP forbids them).
   function watchScreens() {
@@ -697,6 +972,13 @@ if (typeof document !== 'undefined') {
       img.replaceWith(missing);
     }, { once: true }));
   }
+  function renderBadge() {
+    const badge = $('#mode-badge');
+    const active = anyActive();
+    const shownLive = Object.values(live).some(state => state.record || Object.keys(state.slots).length);
+    badge.dataset.mode = active ? 'live' : shownLive ? 'mixed' : 'recorded';
+    $('#mode-text').textContent = active ? 'LIVE RUN IN PROGRESS' : shownLive ? 'RECORDED AND LIVE RUNS' : 'RECORDED RUNS · NOT LIVE';
+  }
   function render() {
     const step = STEPS[current];
     document.title = `Harness Lab · Build a harness · Step ${step.id}`;
@@ -706,17 +988,181 @@ if (typeof document !== 'undefined') {
     $('#progress').setAttribute('aria-label', `Step ${step.id} of 7`);
     $('#problem').textContent = step.problem;
     $('#add-text').textContent = step.add;
+    if (shown.step !== step.id) shown = { step: null, live: '', proof: '', phones: '' };
     renderDiagram(step.id);
     renderCode(step);
+    renderLive(step);
     renderProof(step);
     renderPhones(step);
-    watchScreens();
+    shown.step = step.id;
+    renderBadge();
     $('#back').disabled = step.id === 0;
     $('#next').disabled = step.id === 7;
     const notice = $('#recording-notice');
     notice.hidden = loadState === 'ready';
     notice.textContent = loadState === 'loading' ? 'Loading the recording…' : loadState === 'missing' ? 'No builder recording was found on this server. Each step still shows its problem and its component; the proof panel says "Not recorded yet".' : loadState === 'error' ? 'The builder recording could not be loaded. The proof panels say "Not recorded yet".' : '';
   }
+  // Called after every live change: the badge always, the panels when that step is on screen.
+  function update(stepId) {
+    renderBadge();
+    if (stepId !== current) return;
+    const step = STEPS[current];
+    renderLive(step);
+    renderProof(step);
+    renderPhones(step);
+  }
+
+  // ---- Live actions ----
+  async function startLive(stepId) {
+    const previous = live[stepId];
+    if (isActive(previous) || !providerState?.configured) return;
+    const config = liveStepConfig(stepId);
+    // Until the new run has started, the step keeps showing what it showed before.
+    const state = { phase: 'starting', slots: previous?.slots || {}, record: previous?.record || null, error: null, pollError: null, evaluation: previous?.evaluation || {}, probe: previous?.probe || {}, approval: previous?.approval || {}, changes: previous?.changes || null, clientStartedAt: Date.now() };
+    live[stepId] = state;
+    update(stepId);
+    // A failed create or start keeps the recorded run (or the earlier live run) and shows the server's message.
+    const fail = message => {
+      if (live[stepId] !== state) return;
+      if (previous) { Object.assign(previous, { error: message, pollError: null }); live[stepId] = previous; }
+      else live[stepId] = { phase: 'error', slots: {}, record: null, error: message, pollError: null, evaluation: {}, probe: {}, approval: {}, changes: null };
+      update(stepId);
+    };
+    if (config.modelOnly) {
+      try {
+        const record = await api(config.endpoint, config.body);
+        if (live[stepId] !== state) return;
+        Object.assign(state, { record, phase: 'done' });
+        update(stepId);
+      } catch (error) { fail(error.message); }
+      return;
+    }
+    let first = true;
+    for (const item of config.runs) {
+      const key = slotKey(item.slot);
+      let run;
+      try {
+        const created = await api(config.endpoint, item.body);
+        run = await api(`/api/runs/${created.id}/start`, {});
+      } catch (error) {
+        if (first) { fail(error.message); return; }
+        // The first step 6 run stays on screen; the second did not start.
+        state.phase = 'error';
+        state.error = `${slotLabel(key) || 'Run'}: ${error.message}`;
+        update(stepId);
+        return;
+      }
+      if (live[stepId] !== state) return;
+      if (first) {
+        state.slots = Object.fromEntries(config.runs.map(other => [slotKey(other.slot), null]));
+        Object.assign(state, { evaluation: {}, probe: {}, approval: {}, changes: null });
+        first = false;
+      }
+      state.slots[key] = run;
+      state.phase = 'running';
+      update(stepId);
+      if (!await followRun(stepId, state, key, run.id)) return;
+      await evaluateLive(stepId, state, key, run.id);
+      if (live[stepId] !== state) return;
+    }
+    state.phase = 'done';
+    update(stepId);
+  }
+  // Polls GET /api/runs/:id every 1.5 s until the run has stopped. Returns false
+  // when a newer live run replaced this one. A pause from elsewhere shows "Paused"
+  // and keeps following the run, in case it is resumed.
+  async function followRun(stepId, state, key, id) {
+    while (live[stepId] === state) {
+      await wait(POLL_MS);
+      if (live[stepId] !== state) return false;
+      let run;
+      try { run = await api(`/api/runs/${id}`); state.pollError = null; }
+      catch (error) { state.pollError = `Could not read run ${shortId(id)}: ${error.message}. Reading it again in ${POLL_MS / 1000} s.`; update(stepId); continue; }
+      state.slots[key] = run;
+      const paused = ['paused', 'interrupted'].includes(run.status) && !isActiveRun(run);
+      state.phase = paused ? 'paused' : 'running';
+      if (stepId === 7 && !isActiveRun(run) && ['awaiting_approval', 'completed'].includes(run.status)) {
+        try { state.changes = (await api(`/api/runs/${id}/diff`)).changes || []; }
+        catch (error) { state.pollError = `Could not read the change: ${error.message}`; }
+      }
+      update(stepId);
+      if (!isActiveRun(run) && !paused && run.status !== 'ready') return true;
+    }
+    return false;
+  }
+  // Presenter evaluation after the run stops, with the same bounded retry as
+  // scripts/evaluation-client.mjs evaluateStoppedRun: only the exact busy
+  // conflict is retried (terminal status can precede the runner lock release).
+  async function evaluateLive(stepId, state, key, id, attempts = 40) {
+    state.phase = 'evaluating';
+    state.evaluation[key] = { state: 'running' };
+    update(stepId);
+    const done = result => { if (live[stepId] === state) { state.evaluation[key] = result; update(stepId); } };
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (live[stepId] !== state) return;
+      let run;
+      try { run = await api(`/api/runs/${id}`); }
+      catch (error) { done({ state: 'error', error: error.message }); return; }
+      state.slots[key] = run;
+      if (!isActiveRun(run)) {
+        try { state.slots[key] = await api(`/api/runs/${id}/checks`, {}); done({ state: 'done' }); return; }
+        catch (error) { if (error.message !== BUSY_MESSAGE) { done({ state: 'error', error: error.message }); return; } }
+      }
+      if (attempt + 1 < attempts) await wait(250);
+    }
+    done({ state: 'error', error: `Run ${id} has not released its operation lock; evaluation was not completed.` });
+  }
+  async function probeLive() {
+    const state = live[2];
+    const run = state?.slots?.main;
+    if (!run || state.probe?.state === 'running') return;
+    state.probe = { state: 'running' };
+    update(2);
+    try { state.slots.main = await api(`/api/runs/${run.id}/probe`, {}); state.probe = { state: 'done' }; }
+    catch (error) { state.probe = { state: 'error', error: error.message }; }
+    update(2);
+  }
+  async function approveLive() {
+    const state = live[7];
+    const run = state?.slots?.main;
+    if (!run || state.approval?.state === 'running') return;
+    state.approval = { state: 'running' };
+    update(7);
+    try { state.slots.main = await api(`/api/runs/${run.id}/approve`, {}); state.approval = { state: 'done' }; }
+    catch (error) { state.approval = { state: 'error', error: error.message }; }
+    update(7);
+  }
+
+  // ---- Dialog (diff and approval), the dashboard's styles ----
+  let modalOpener = null, modalVersion = 0;
+  function openModal(title, kicker, body) {
+    modalVersion++;
+    modalOpener = document.activeElement;
+    $('#modal-title').textContent = title;
+    $('#modal-kicker').textContent = kicker;
+    $('#modal-body').innerHTML = body;
+    if (!$('#modal').open) $('#modal').showModal();
+    $('#modal').scrollTop = 0;
+  }
+  function closeModal() { if ($('#modal').open) $('#modal').close(); modalVersion++; if (modalOpener instanceof HTMLElement && modalOpener.isConnected) modalOpener.focus(); }
+  async function showDiff(runId) {
+    const run = live[7]?.slots?.main;
+    openModal('Inspect the proposed change.', 'SOURCE BEFORE & AFTER', '<p class="empty-dialog">Loading the actual source diff…</p>');
+    const version = modalVersion;
+    try {
+      const result = await api(`/api/runs/${encodeURIComponent(runId)}/diff`);
+      if (version !== modalVersion) return;
+      $('#modal-body').innerHTML = (result.changes?.length ? `<p class="dialog-description">Actual source snapshots for run ${escapeHTML(shortId(runId))}. Publication requires your approval. Passing checks on the current revision are required.</p>${result.changes.map(change => `<section class="diff-file"><h3>${escapeHTML(change.file)}</h3><div class="diff-panels"><div class="diff-panel before"><span>BEFORE</span><pre>${escapeHTML(change.before)}</pre></div><div class="diff-panel"><span>AFTER</span><pre>${escapeHTML(change.after)}</pre></div></div></section>`).join('')}` : '<p class="empty-dialog">No source changes have been recorded in this workspace.</p>')
+        + `<div class="dialog-actions"><button class="button button-secondary" type="button" data-close-modal>Close</button>${run?.id === runId && run.status === 'awaiting_approval' ? `<button class="button button-primary" type="button" data-action="approve">${svg('checkCircle')}<span>Approve and publish</span></button>` : ''}</div>`;
+    } catch (error) { if (version === modalVersion) $('#modal-body').innerHTML = `<p class="empty-dialog danger-label">${escapeHTML(error.message)}</p>`; }
+  }
+  function showApprove() {
+    const run = live[7]?.slots?.main;
+    if (!run || run.status !== 'awaiting_approval') return;
+    const checks = run.checks ? `${run.checks.passed}/${run.checks.total} browser checks passed on revision ${run.checks.revision}.` : 'No browser evaluation recorded.';
+    openModal('Publish this change?', 'YOUR APPROVAL', `<p>Approve revision <strong>${escapeHTML(run.pendingRevision || 'unknown')}</strong> from run <strong>${escapeHTML(shortId(run.id))}</strong>. The server confirms the source still matches the proposal and the checks pass, then updates this run's production copy. This is your decision, not the model's.</p><div class="dialog-callout">${svg('checkCircle')}<span>${escapeHTML(checks)} Read the diff before you approve.</span></div><div class="dialog-actions"><button class="button button-secondary" type="button" data-action="view-diff" data-run="${escapeHTML(run.id)}">${svg('code')}<span>View diff</span></button><button class="button button-secondary" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="button" id="confirm-approve">${svg('checkCircle')}<span>Approve and publish</span></button></div>`);
+  }
+
   function go(stepId) {
     const next = Math.max(0, Math.min(7, stepId));
     if (location.hash !== `#step-${next}`) location.hash = `#step-${next}`;
@@ -725,25 +1171,45 @@ if (typeof document !== 'undefined') {
   window.addEventListener('hashchange', () => { current = parseStep(location.hash); render(); window.scrollTo(0, 0); });
   document.addEventListener('keydown', event => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if ($('#modal').open) return;
     if (event.target instanceof HTMLElement && event.target.closest('input, select, textarea, [contenteditable="true"]')) return;
     if (event.key === 'ArrowRight') { event.preventDefault(); go(current + 1); }
     else if (event.key === 'ArrowLeft') { event.preventDefault(); go(current - 1); }
   });
   $('#back').addEventListener('click', () => go(current - 1));
   $('#next').addEventListener('click', () => go(current + 1));
+  // One delegated handler for the live buttons (no inline handlers: the CSP forbids them).
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest('#modal-close, [data-close-modal]')) { closeModal(); return; }
+    if (target.closest('#confirm-approve')) { closeModal(); approveLive(); return; }
+    const button = target.closest('[data-action]');
+    if (!button || button.disabled) return;
+    const action = button.dataset.action;
+    if (action === 'run-live') startLive(Number(button.dataset.step));
+    else if (action === 'probe') probeLive();
+    else if (action === 'view-diff') showDiff(button.dataset.run);
+    else if (action === 'approve') showApprove();
+  });
+  $('#modal').addEventListener('close', () => { modalVersion++; });
+  // While a step-0 request is waiting, its status line counts the seconds.
+  setInterval(() => { if (anyActive()) renderLive(STEPS[current]); }, 1000);
   current = parseStep(location.hash);
   render();
   (async () => {
     try {
       const response = await fetch('/api/builder', { cache: 'no-store' });
-      if (response.status === 404) { loadState = 'missing'; render(); return; }
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      recording = await response.json();
-      loadState = 'ready';
-      if (Object.keys(recording.present || {}).length) {
-        try { previewOrigin = (await (await fetch('/api/state', { cache: 'no-store' })).json()).previewOrigin || null; } catch { previewOrigin = null; }
-      }
+      if (response.status === 404) loadState = 'missing';
+      else if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      else { recording = await response.json(); loadState = 'ready'; }
     } catch { loadState = 'error'; recording = null; }
+    // The server state says whether live runs are possible and where the phones live.
+    try {
+      const state = await api('/api/state');
+      previewOrigin = state.previewOrigin || null;
+      providerState = { configured: !!state.provider?.configured, error: null };
+    } catch (error) { previewOrigin = null; providerState = { configured: false, error: error.message }; }
     render();
   })();
 }

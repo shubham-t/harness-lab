@@ -16,7 +16,7 @@ import { RESET_AFTER_CALLS } from '../lib/store.mjs';
 
 export const PHASES = ['record', 'finish'];
 export const SCENARIO = 'draft';
-export const DEFAULTS = { url: 'http://127.0.0.1:4318', out: 'live-validation/builder', resetAfterCalls: 5, phase: 'record' };
+export const DEFAULTS = { url: 'http://127.0.0.1:4318', out: 'live-validation/builder', resetAfterCalls: 5, resetAfterFirstEdit: false, phase: 'record' };
 export const NOTE = 'Recorded real runs for the harness builder page. Nothing scripted; failures kept.';
 export const APPROVAL_MESSAGE = 'Step 7 is waiting for approval. Read its diff in the dashboard, approve it, then run --phase finish.';
 
@@ -26,6 +26,9 @@ export const USAGE = `Usage: node scripts/record-builder.mjs [options]
                       Writes DIR/recording.json, DIR/runs/*.json and DIR/screens/*.png.
   --reset-after N     Step 6 forces a fresh session after model call N (${RESET_AFTER_CALLS.min} to ${RESET_AFTER_CALLS.max}, default ${DEFAULTS.resetAfterCalls}).
                       Only the two step-6 runs use it. Phase record only.
+  --reset-after-edit  Step 6 forces a fresh session right after each run's first file edit
+                      (resetAfterFirstEdit) instead of after a call count. Phase record only;
+                      cannot be combined with --reset-after.
   --steps LIST        Phase record only: re-record just these steps (comma-separated, 0 to 7) into an
                       existing recording. The earlier entries and their screenshots are kept as
                       superseded evidence; nothing is deleted.
@@ -40,7 +43,7 @@ It refuses to start without a configured provider or over an existing recording.
 export class UsageError extends Error {}
 
 const VALUED = ['--url', '--out', '--reset-after', '--phase', '--steps'];
-const FLAGS = ['--help'];
+const FLAGS = ['--help', '--reset-after-edit'];
 
 export function parseArgs(argv) {
   const options = { ...DEFAULTS, steps: null, help: false };
@@ -51,6 +54,7 @@ export function parseArgs(argv) {
     if (seen.has(name)) throw new UsageError(`${name} is given more than once.`);
     seen.add(name);
     if (name === '--help') { options.help = true; continue; }
+    if (name === '--reset-after-edit') { options.resetAfterFirstEdit = true; options.resetAfterCalls = null; continue; }
     const value = argv[++i];
     if (value === undefined || value.startsWith('--') || !value.trim()) throw new UsageError(`${name} needs a value.`);
     if (name === '--url') {
@@ -72,6 +76,8 @@ export function parseArgs(argv) {
       options.phase = value;
     }
   }
+  if (seen.has('--reset-after') && seen.has('--reset-after-edit')) throw new UsageError('Use --reset-after or --reset-after-edit, not both.');
+  if (options.phase === 'finish' && seen.has('--reset-after-edit')) throw new UsageError('--reset-after-edit applies only to --phase record.');
   if (options.phase === 'finish' && seen.has('--reset-after')) throw new UsageError('--reset-after applies only to --phase record.');
   if (options.phase === 'finish' && options.steps) throw new UsageError('--steps applies only to --phase record.');
   return options;
@@ -85,9 +91,11 @@ export function featureSet(enabled = []) {
 
 // The steps table of docs/BUILDER.md. Same task, starting files and budgets in
 // every run; only what the harness supplies and requires differs. Only step 6
-// passes resetAfterCalls. Approval is never part of the plan.
-export function planSteps(resetAfterCalls = DEFAULTS.resetAfterCalls) {
+// passes a reset: resetAfterCalls, or resetAfterFirstEdit with --reset-after-edit.
+// Approval is never part of the plan.
+export function planSteps(resetAfterCalls = DEFAULTS.resetAfterCalls, { resetAfterFirstEdit = false } = {}) {
   const step5 = ['instructions', 'context', 'verification'];
+  const reset = resetAfterFirstEdit ? { resetAfterFirstEdit: true } : { resetAfterCalls };
   const run = (step, label, title, body, extra = {}) => ({ step, key: `step${step}`, slot: null, label, title, body: { ...body, scenario: SCENARIO }, probe: false, ...extra });
   return [
     { step: 0, key: 'step0', slot: null, label: 'model-only', title: 'A model alone', modelOnly: true },
@@ -96,8 +104,8 @@ export function planSteps(resetAfterCalls = DEFAULTS.resetAfterCalls) {
     run(3, 'instructions', 'Instructions and policies', { mode: 'minimal', features: featureSet(['instructions']) }),
     run(4, 'context', 'Context management', { mode: 'minimal', features: featureSet(['instructions', 'context']) }),
     run(5, 'verification', 'Verification', { mode: 'minimal', features: featureSet(step5) }),
-    run(6, 'without-memory', 'Memory and state (without memory)', { mode: 'minimal', features: featureSet(step5), resetAfterCalls }, { slot: 'withoutMemory' }),
-    run(6, 'with-memory', 'Memory and state (with memory)', { mode: 'minimal', features: featureSet([...step5, 'memory']), resetAfterCalls }, { slot: 'withMemory' }),
+    run(6, 'without-memory', 'Memory and state (without memory)', { mode: 'minimal', features: featureSet(step5), ...reset }, { slot: 'withoutMemory' }),
+    run(6, 'with-memory', 'Memory and state (with memory)', { mode: 'minimal', features: featureSet([...step5, 'memory']), ...reset }, { slot: 'withMemory' }),
     run(7, 'engineered', 'Guardrails (approval)', { mode: 'engineered' }, { approvalStep: true })
   ];
 }
@@ -209,7 +217,10 @@ export async function recordPhase(options, deps = {}) {
   const out = path.resolve(options.out);
   const recordingFile = path.join(out, 'recording.json');
   const selected = options.steps ? new Set(options.steps) : null;
-  const plan = planSteps(options.resetAfterCalls).filter(item => !selected || selected.has(item.step));
+  const resetAfterFirstEdit = options.resetAfterFirstEdit === true;
+  const resetAfterCalls = resetAfterFirstEdit ? null : options.resetAfterCalls;
+  const resetLabel = resetAfterFirstEdit ? 'right after its first file edit' : `after model call ${resetAfterCalls}`;
+  const plan = planSteps(resetAfterCalls, { resetAfterFirstEdit }).filter(item => !selected || selected.has(item.step));
   const runCount = plan.filter(item => !item.modelOnly).length;
   const modelOnlyCount = plan.filter(item => item.modelOnly).length;
   log(`Phase record makes real, billable model calls: ${modelOnlyCount} model-only request${modelOnlyCount === 1 ? '' : 's'} (step 0) and ${runCount} run${runCount === 1 ? '' : 's'} (${selected ? 'steps ' + [...selected].join(', ') : 'steps 1 to 7, two runs for step 6'}), up to 24 model calls each. Same task, starting files and budgets; only the harness differs. This script never approves.`);
@@ -226,14 +237,14 @@ export async function recordPhase(options, deps = {}) {
   const recording = existing || {
     note: NOTE, recordedAt: new Date().toISOString(), finishedAt: null, complete: false,
     model: state.provider.model, baseUrl: state.provider.baseUrl, protocol: state.provider.protocol, origin: options.url,
-    resetAfterCalls: options.resetAfterCalls, scenario: SCENARIO, error: null, steps: {}
+    resetAfterCalls, resetAfterFirstEdit, scenario: SCENARIO, error: null, steps: {}
   };
   if (existing) {
     if (existing.model !== state.provider.model) throw new Error(`The recording used model "${existing.model}" but the server is configured for "${state.provider.model}". Every step must use the same model. No request was made.`);
     recording.error = null;
     recording.updatedAt = new Date().toISOString();
     recording.superseded ||= [];
-    if (selected.has(6)) recording.resetAfterCalls = options.resetAfterCalls;
+    if (selected.has(6)) { recording.resetAfterCalls = resetAfterCalls; recording.resetAfterFirstEdit = resetAfterFirstEdit; }
     if (selected.has(7)) { recording.complete = false; recording.finishedAt = null; }
     for (const step of selected) {
       const key = `step${step}`;
@@ -249,12 +260,12 @@ export async function recordPhase(options, deps = {}) {
           part.screens[name] = moved;
         }
       }
-      recording.superseded.push({ step: key, supersededAt: new Date(stamp).toISOString(), reason: `Re-recorded with --steps ${[...selected].join(',')}${selected.has(6) ? ` --reset-after ${options.resetAfterCalls}` : ''}.`, entry });
+      recording.superseded.push({ step: key, supersededAt: new Date(stamp).toISOString(), reason: `Re-recorded with --steps ${[...selected].join(',')}${selected.has(6) ? (resetAfterFirstEdit ? ' --reset-after-edit' : ` --reset-after ${resetAfterCalls}`) : ''}.`, entry });
       delete recording.steps[key];
       log(`[${key}] earlier entry kept as superseded evidence; its screenshots were renamed with a superseded- prefix.`);
     }
   }
-  log(`Model: ${recording.model} (${recording.protocol}, ${recording.baseUrl}). Scenario: ${SCENARIO}. Step 6 resets after model call ${options.resetAfterCalls}. Writing to ${out}.`);
+  log(`Model: ${recording.model} (${recording.protocol}, ${recording.baseUrl}). Scenario: ${SCENARIO}. Step 6 resets ${resetLabel}. Writing to ${out}.`);
   const save = () => writeJsonAtomic(recordingFile, recording, 'recording.json');
   await save();
   let screens = null;

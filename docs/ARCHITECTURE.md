@@ -7,7 +7,7 @@ Harness Lab runs on one laptop. The browser dashboard controls a Node server. Th
 | Module | Responsibility |
 | --- | --- |
 | `server.mjs` | Dashboard/API on 4318; preview, published and production routes on 4319; origin checks, explicit run actions and evaluation groups |
-| `lib/store.mjs` | Fixture copying, allowed paths, atomic persistence, revisions, public run snapshots, source diffs and `resetAfterCalls` validation |
+| `lib/store.mjs` | Fixture copying, allowed paths, atomic persistence, revisions, public run snapshots, source diffs and validation of the forced-reset settings (`resetAfterCalls`, `resetAfterFirstEdit`) |
 | `lib/provider.mjs` | Responses and Chat Completions adapters, tool continuation, aborts, timeouts, token accounting, memory-only credentials, optional request pacing (`MODEL_MIN_INTERVAL_MS`) and bounded HTTP 429 retries (`MODEL_RETRY_429`, default 3) that apply equally to every preset and are recorded as events |
 | `lib/runner.mjs` | Context assembly (including the ticket thread), actual model/tool loop, feature-dependent tools, checkpoints, budgets, forced reset, completion and approval |
 | `lib/browser.mjs` | Playwright operations and the two protected check tiers: six visible and five held-out checks |
@@ -22,7 +22,7 @@ Harness Lab runs on one laptop. The browser dashboard controls a Node server. Th
 2. The runner assembles basic task instructions and enabled project inputs. Instructions & policies receives conventions and completion rules from PROJECT.md. Context management receives its repository map, file metadata and revision, and in v4 the PN-142 ticket thread. Each input gets a separate event with the exact payload for that request.
 3. The provider receives instructions, the current session history and permitted tool schemas. The model requests an action or responds with text.
 4. The runner validates and executes requested tools serially, appends observations to API history, and records visible evidence.
-5. If a forced reset is configured and its call count is reached, the runner ends session 1 and starts session 2 (see below).
+5. If a forced reset is configured and its trigger is reached (a call count, or the first file edit), the runner ends session 1 and starts session 2 (see below).
 6. Completion either publishes directly or runs visible verification and waits for approval, depending on configuration. Revision hashes prevent approval of changed source.
 
 ## Tool access
@@ -55,6 +55,8 @@ The preview origin serves `/production/<runId>/<file>`. When the run has an `app
 Working files survive in all presets. With Memory on, the runner records observed checkpoints and optionally model-written handoff text. A fresh session clears API conversation history. From v3, a compact handoff is frozen at session start: latest edited files and revisions, a concise check summary, a bounded model-written note and recent action names. Full checkpoints remain in the audit trail. Saved memory does not guarantee task completion.
 
 A run may be created with `resetAfterCalls`, an integer from 2 to 23. After that model call and its tool executions, while still in session 1 and running, the runner records a `reset` event titled "Context limit reached: fresh session required" and sets `run.forcedReset`. It then starts session 2 through the same path that Resume uses. The handoff is supplied only when Memory is on. There is at most one forced reset per run, and the status stays `running` during the transition. A pause during the transition settles as paused. `resetAfterCalls` is part of the evaluation grouping key.
+
+A run may instead be created with `resetAfterFirstEdit: true` (not together with `resetAfterCalls`): the same reset happens right after the model call whose tool executions produced the run's first successful `write_file`, so every preset is cut at the same point in its work rather than at the same call number, and the event and `run.forcedReset` record that call with `resetAfterFirstEdit: true`/`afterFirstEdit: true`. A run that never edits (a loop-only run, for example) never resets, and `resetAfterFirstEdit` is part of the evaluation grouping key, the comparison pairing and the ladder filter.
 
 ## Evaluation
 

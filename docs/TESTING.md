@@ -28,6 +28,8 @@ These are deterministic implementation tests. None of them is a real-provider re
 - `tests/builder-system.test.mjs` (server on ports 4438/4439, scripted loopback provider on 4440, real Chromium): the model-only endpoint and its records, loop-only runs over HTTP, separate evaluation groups, `GET /api/builder` and `/builder-assets/`, and the builder files served or a clean 404.
 - `tests/builder-page.test.mjs` (server on ports 4448/4449, no provider, real Chromium): the page derivations on a fixture built from recorded exports, every step rendered, request highlights, activity excerpts, the `Not recorded yet` and screenshot fallbacks, both presentation viewports.
 - `tests/record-builder.test.mjs` (no network, no browser): the recorder's arguments, step plan, key hygiene, both phases against a fake API, and the stop at the approval boundary.
+- `tests/builder-live.test.mjs` (server on ports 4458/4459, scripted loopback provider on 4460, real Chromium): the page's live mode: a loop-only step 1 run growing in the activity list to its budget stop, step 5 to completion with the presenter evaluation, step 7 to the approval boundary with the diff dialog and the approval, the step 2 probe, hidden buttons without a provider, the recording file unchanged, no page errors.
+- The reset-after-first-edit setting is covered in `tests/builder-runner.test.mjs` (both presets reset right after their first write, a handoff only with memory, a run that never writes never resets) and over HTTP in `tests/builder-system.test.mjs`.
 
 The recording itself (`node scripts/record-builder.mjs`) makes real, billable model calls and is a live test, not part of `npm test`.
 

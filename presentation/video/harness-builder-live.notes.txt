@@ -1,0 +1,45 @@
+Harness builder live recording, 2026-10-27T18:43:16.858Z, model cohere/north-mini-code:free, origin http://127.0.0.1:4318.
+Original: C:\Projects\harness-lab\presentation\video\harness-builder-live.webm (23:21, untouched)
+Trimmed copy not written (--no-trim).
+
+Timeline (original mm:ss -> trimmed mm:ss):
+  00:02 -> 00:01  Step 0: title card, then the page (pause for narration)
+  00:10 -> 00:09  Step 0: live run started
+  01:03 -> 00:14  Step 0: finished. Completed · 1 request, no tools · 3,759 reported tokens · request A4CD5C7A
+  01:09 -> 00:21  Step 1: title card, then the page (pause for narration)
+  01:17 -> 00:29  Step 1: live run started
+  06:00 -> 00:54  Step 1: finished. Budget reached · call 4 of 24 · 45,064 reported tokens · 276 s · run B413BBC0
+  06:07 -> 01:01  Step 2: title card, then the page (pause for narration)
+  06:15 -> 01:09  Step 2: live run started
+  08:26 -> 02:46  Step 2: finished. Budget reached · call 23 of 24 · 94,646 reported tokens · 125 s · run 78D90A29
+  08:31 -> 02:49  Step 2: sandbox probe rejected (presenter action)
+  08:38 -> 02:56  Step 3: title card, then the page (pause for narration)
+  08:46 -> 03:04  Step 3: live run started
+  10:43 -> 04:46  Step 3: finished. Budget reached · call 24 of 24 · 81,728 reported tokens · 110 s · run 7EA98CDD
+  10:50 -> 04:52  Step 4: title card, then the page (pause for narration)
+  10:58 -> 05:01  Step 4: live run started
+  12:51 -> 06:37  Step 4: finished. Budget reached · call 23 of 24 · 100,254 reported tokens · 106 s · run CD131BEA
+  12:58 -> 06:44  Step 5: title card, then the page (pause for narration)
+  13:06 -> 06:52  Step 5: live run started
+  14:29 -> 07:48  Step 5: finished. Completed · call 11 of 24 · 47,369 reported tokens · 75 s · run 8E7CF5FF
+  14:35 -> 07:55  Step 6: title card, then the page (pause for narration)
+  14:43 -> 08:03  Step 6: live run started
+  21:23 -> 11:19  Step 6: finished. Without memory: Budget reached · call 23 of 24 · 100,739 reported tokens · 108 s · run D0D154FA | With memory: Budget reached · call 20 of 24 · 83,949 reported tokens · 279 s · run 85CB5E19
+  21:30 -> 11:26  Step 7: title card, then the page (pause for narration)
+  21:38 -> 11:34  Step 7: live run started
+  22:52 -> 12:26  Step 7: finished. Awaiting approval · call 11 of 24 · 39,169 reported tokens · 67 s · run 4E3131D7
+  22:59 -> 12:30  Step 7: diff shown
+  23:04 -> 12:36  Step 7: Approved run 4e3131d7-2e41-4c66-ac2e-c06862060edc after the automated diff review (storage only, notes key intact, draft key added).
+
+Runs created during the recording:
+  b413bbc0-3be1-40b5-9a98-6dbd90925b74  loop-only {"instructions":false,"context":false,"memory":false,"verification":false,"permissions":false} reset=none  status=budget_exceeded  calls=4
+  78d90a29-ee20-47e2-9f99-efdf5433f7a9  minimal {"instructions":false,"context":false,"memory":false,"verification":false,"permissions":false} reset=none  status=budget_exceeded  calls=23
+  7ea98cdd-bf97-418e-8d12-5863c6ffb5da  minimal {"instructions":true,"context":false,"memory":false,"verification":false,"permissions":false} reset=none  status=budget_exceeded  calls=24
+  cd131bea-2b4e-4b97-bfd8-402be71c5756  minimal {"instructions":true,"context":true,"memory":false,"verification":false,"permissions":false} reset=none  status=budget_exceeded  calls=23
+  8e7cf5ff-b11d-4dee-bb45-e2809fd3da36  minimal {"instructions":true,"context":true,"memory":false,"verification":true,"permissions":false} reset=none  status=completed  calls=11
+  d0d154fa-117c-4962-a03b-189a1d3e6e73  minimal {"instructions":true,"context":true,"memory":false,"verification":true,"permissions":false} reset=first edit  status=budget_exceeded  calls=23
+  85cb5e19-f1f3-4279-99cc-c09aaeedf877  minimal {"instructions":true,"context":true,"memory":true,"verification":true,"permissions":false} reset=first edit  status=budget_exceeded  calls=20
+  4e3131d7-2e41-4c66-ac2e-c06862060edc  engineered {"instructions":true,"context":true,"memory":true,"verification":true,"permissions":true} reset=none  status=completed  calls=11
+
+Approved run 4e3131d7-2e41-4c66-ac2e-c06862060edc after the automated diff review (storage only, notes key intact, draft key added).
+Page errors: Identifier 'render' has already been declared

@@ -1,0 +1,45 @@
+Harness builder live recording, 2026-10-27T18:15:39.482Z, model cohere/north-mini-code:free, origin http://127.0.0.1:4318.
+Original: C:\Projects\harness-lab\presentation\video\harness-builder-live.webm (25:52, untouched)
+Trimmed copy not written (--no-trim).
+
+Timeline (original mm:ss -> trimmed mm:ss):
+  00:03 -> 00:03  Step 0: title card, then the page (pause for narration)
+  00:11 -> 00:11  Step 0: live run started
+  02:12 -> 00:16  Step 0: the page reported an error (kept in the video): The model request timed out after 120 seconds.
+  02:17 -> 00:19  Step 0: live run started (attempt 2)
+  03:31 -> 00:25  Step 0: finished. Completed · 1 request, no tools · 4,689 reported tokens · request A2B60722
+  03:38 -> 00:32  Step 1: title card, then the page (pause for narration)
+  03:46 -> 00:40  Step 1: live run started
+  08:37 -> 01:17  Step 1: finished. Budget reached · call 7 of 24 · 69,017 reported tokens · 285 s · run AEB5A41E
+  08:44 -> 01:24  Step 2: title card, then the page (pause for narration)
+  08:52 -> 01:32  Step 2: live run started
+  10:41 -> 03:10  Step 2: finished. Budget reached · call 23 of 24 · 103,888 reported tokens · 102 s · run 74331774
+  10:46 -> 03:11  Step 2: sandbox probe rejected (presenter action)
+  10:53 -> 03:18  Step 3: title card, then the page (pause for narration)
+  11:01 -> 03:26  Step 3: live run started
+  12:49 -> 05:04  Step 3: finished. Budget reached · call 23 of 24 · 100,094 reported tokens · 103 s · run 83B113C2
+  12:56 -> 05:11  Step 4: title card, then the page (pause for narration)
+  13:04 -> 05:19  Step 4: live run started
+  15:56 -> 06:46  Step 4: finished. Budget reached · call 21 of 24 · 103,133 reported tokens · 166 s · run 0BF69190
+  16:03 -> 06:53  Step 5: title card, then the page (pause for narration)
+  16:11 -> 07:01  Step 5: live run started
+  17:03 -> 07:43  Step 5: finished. Completed · call 8 of 24 · 28,549 reported tokens · 46 s · run DFDA9055
+  17:10 -> 07:50  Step 6: title card, then the page (pause for narration)
+  17:18 -> 07:58  Step 6: live run started
+  23:33 -> 10:45  Step 6: finished. Without memory: Budget reached · call 21 of 24 · 93,698 reported tokens · 217 s · run C7644E7E | With memory: Budget reached · call 17 of 24 · 79,740 reported tokens · 146 s · run 93C3CF89
+  23:40 -> 10:52  Step 7: title card, then the page (pause for narration)
+  23:48 -> 11:00  Step 7: live run started
+  25:51 -> 12:17  Step 7: finished. Budget reached · call 16 of 24 · 87,704 reported tokens · 117 s · run 75BB093F
+
+Runs created during the recording:
+  aeb5a41e-fa5d-4d2a-8d13-1cb21aac5795  loop-only {"instructions":false,"context":false,"memory":false,"verification":false,"permissions":false} reset=none  status=budget_exceeded  calls=7
+  74331774-aacd-42fa-addd-425bac96b0f6  minimal {"instructions":false,"context":false,"memory":false,"verification":false,"permissions":false} reset=none  status=budget_exceeded  calls=23
+  83b113c2-243c-4d64-87a7-339a40cf301a  minimal {"instructions":true,"context":false,"memory":false,"verification":false,"permissions":false} reset=none  status=budget_exceeded  calls=23
+  0bf69190-1953-422a-a317-75d2a4607172  minimal {"instructions":true,"context":true,"memory":false,"verification":false,"permissions":false} reset=none  status=budget_exceeded  calls=21
+  dfda9055-466c-4d72-bee3-f7d9d2f76cb1  minimal {"instructions":true,"context":true,"memory":false,"verification":true,"permissions":false} reset=none  status=completed  calls=8
+  c7644e7e-396b-4586-b3fe-fc34cb7c41bf  minimal {"instructions":true,"context":true,"memory":false,"verification":true,"permissions":false} reset=first edit  status=budget_exceeded  calls=21
+  93c3cf89-ad34-4cc9-acf2-5ecb339e3f42  minimal {"instructions":true,"context":true,"memory":true,"verification":true,"permissions":false} reset=first edit  status=budget_exceeded  calls=17
+  75bb093f-8b59-4e57-b14d-ae2da7777b9b  engineered {"instructions":true,"context":true,"memory":true,"verification":true,"permissions":true} reset=none  status=budget_exceeded  calls=16
+
+No run was approved.
+Page errors: Identifier 'render' has already been declared

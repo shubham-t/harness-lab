@@ -20,9 +20,9 @@ const readJson = async file => JSON.parse(await fs.readFile(file, 'utf8'));
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 test('defaults, valid values and invalid arguments', () => {
-  assert.deepEqual(parseArgs([]), { url: 'http://127.0.0.1:4318', out: 'live-validation/builder', resetAfterCalls: 5, phase: 'record', steps: null, help: false });
+  assert.deepEqual(parseArgs([]), { url: 'http://127.0.0.1:4318', out: 'live-validation/builder', resetAfterCalls: 5, resetAfterFirstEdit: false, phase: 'record', steps: null, help: false });
   const custom = parseArgs(['--url', 'http://localhost:5000/x', '--out', 'tmp/rec', '--reset-after', String(RESET_AFTER_CALLS.max), '--phase', 'record']);
-  assert.deepEqual(custom, { url: 'http://localhost:5000', out: 'tmp/rec', resetAfterCalls: RESET_AFTER_CALLS.max, phase: 'record', steps: null, help: false });
+  assert.deepEqual(custom, { url: 'http://localhost:5000', out: 'tmp/rec', resetAfterCalls: RESET_AFTER_CALLS.max, resetAfterFirstEdit: false, phase: 'record', steps: null, help: false });
   assert.equal(parseArgs(['--phase', 'finish']).phase, 'finish');
   assert.equal(parseArgs(['--help']).help, true);
   assert.deepEqual(parseArgs(['--steps', '6']).steps, [6]);
@@ -31,8 +31,36 @@ test('defaults, valid values and invalid arguments', () => {
     ['--phase', 'approve'], ['--phase'], ['--reset-after', String(RESET_AFTER_CALLS.min - 1)], ['--reset-after', String(RESET_AFTER_CALLS.max + 1)],
     ['--reset-after', '2.5'], ['--reset-after', 'five'], ['--url', 'not a url'], ['--url', 'ftp://127.0.0.1'], ['--out'], ['--out', '--phase'],
     ['--trials', '1'], ['--help', '--help'], ['--out', 'a', '--out', 'b'], ['--phase', 'finish', '--reset-after', '5'],
-    ['--steps', '8'], ['--steps', '6,6'], ['--steps', ''], ['--steps', 'six'], ['--phase', 'finish', '--steps', '6']
+    ['--steps', '8'], ['--steps', '6,6'], ['--steps', ''], ['--steps', 'six'], ['--phase', 'finish', '--steps', '6'],
+    ['--reset-after-edit', '--reset-after-edit'], ['--reset-after-edit', 'true'], ['--phase', 'finish', '--reset-after-edit']
   ]) assert.throws(() => parseArgs(argv), UsageError, argv.join(' '));
+});
+
+test('--reset-after-edit: a flag for step 6, phase record only, exclusive with --reset-after', () => {
+  const options = parseArgs(['--reset-after-edit']);
+  assert.equal(options.resetAfterFirstEdit, true);
+  assert.equal(options.resetAfterCalls, null);
+  assert.deepEqual(parseArgs(['--steps', '6', '--reset-after-edit']), { ...DEFAULTS, resetAfterCalls: null, resetAfterFirstEdit: true, steps: [6], help: false });
+  for (const argv of [['--reset-after-edit', '--reset-after', '5'], ['--reset-after', '7', '--reset-after-edit']]) {
+    assert.throws(() => parseArgs(argv), { message: 'Use --reset-after or --reset-after-edit, not both.' }, argv.join(' '));
+    assert.throws(() => parseArgs(argv), UsageError);
+  }
+  assert.throws(() => parseArgs(['--phase', 'finish', '--reset-after-edit']), { message: '--reset-after-edit applies only to --phase record.' });
+  const both = spawnSync(process.execPath, [script, '--reset-after-edit', '--reset-after', '5'], { encoding: 'utf8' });
+  assert.equal(both.status, 1); assert.match(both.stderr, /Use --reset-after or --reset-after-edit, not both\./); assert.match(both.stderr, /Usage:/);
+  const help = spawnSync(process.execPath, [script, '--help'], { encoding: 'utf8' });
+  assert.match(help.stdout, /--reset-after-edit/);
+  // Step 6 bodies carry resetAfterFirstEdit instead of resetAfterCalls; no other step resets.
+  const plan = planSteps(null, { resetAfterFirstEdit: true });
+  for (const item of plan.slice(1)) {
+    assert.equal('resetAfterCalls' in item.body, false, item.key);
+    assert.equal(item.body.resetAfterFirstEdit === true, item.step === 6, item.key);
+  }
+  assert.deepEqual(plan.filter(item => item.step === 6).map(item => item.body), [
+    { mode: 'minimal', features: featureSet(['instructions', 'context', 'verification']), resetAfterFirstEdit: true, scenario: 'draft' },
+    { mode: 'minimal', features: featureSet(['instructions', 'context', 'verification', 'memory']), resetAfterFirstEdit: true, scenario: 'draft' }
+  ]);
+  assert.equal(planSteps(6).some(item => item.body && 'resetAfterFirstEdit' in item.body), false, 'The call-count plan is unchanged');
 });
 
 test('the command line prints usage and refuses invalid arguments without calling a server', () => {
@@ -89,7 +117,7 @@ function fakeServer({ configured = true, model = 'example-model', failOn = null,
     if (route === '/api/model/task-only') return { id: 'mo-1', at: '2026-10-27T10:00:00.000Z', model, baseUrl: 'https://provider.example/v1', protocol: 'responses', instructions: 'You are asked…', task: 'Fix Pocket Notes…', text: 'I would read storage.js.', status: 'completed', incompleteReason: null, usage: { input: 100, output: 40 }, usageReported: true };
     if (route === '/api/runs') {
       const id = uuid(++next);
-      const run = { id, mode: data.mode, loopOnly: data.loopOnly === true, features: data.features ?? { instructions: true, context: true, memory: true, verification: true, permissions: true }, scenario: data.scenario, resetAfterCalls: data.resetAfterCalls ?? null, provider: { model }, status: 'ready', polls: 0, usage: { input: 0, output: 0, calls: 0 }, events: [], appliedRevision: null, revision: 'r' + next };
+      const run = { id, mode: data.mode, loopOnly: data.loopOnly === true, features: data.features ?? { instructions: true, context: true, memory: true, verification: true, permissions: true }, scenario: data.scenario, resetAfterCalls: data.resetAfterCalls ?? null, resetAfterFirstEdit: data.resetAfterFirstEdit === true, provider: { model }, status: 'ready', polls: 0, usage: { input: 0, output: 0, calls: 0 }, events: [], appliedRevision: null, revision: 'r' + next };
       runs.set(id, run); return { ...run };
     }
     const [, id, action = ''] = route.match(/^\/api\/runs\/([^/]+)(?:\/(.*))?$/);
@@ -169,7 +197,7 @@ test('phase record follows the plan, probes only step 2, never approves and stop
   assert.deepEqual(saved, JSON.parse(JSON.stringify(recording)));
   assert.equal(saved.note, NOTE); assert.equal(saved.complete, false); assert.equal(saved.finishedAt, null); assert.equal(saved.error, null);
   assert.equal(saved.model, 'example-model'); assert.equal(saved.protocol, 'responses'); assert.equal(saved.baseUrl, 'https://provider.example/v1');
-  assert.equal(saved.origin, 'http://127.0.0.1:4318'); assert.equal(saved.resetAfterCalls, 5); assert.equal(saved.scenario, 'draft');
+  assert.equal(saved.origin, 'http://127.0.0.1:4318'); assert.equal(saved.resetAfterCalls, 5); assert.equal(saved.resetAfterFirstEdit, false); assert.equal(saved.scenario, 'draft');
   assert.deepEqual(Object.keys(saved.steps), ['step0', 'step1', 'step2', 'step3', 'step4', 'step5', 'step6', 'step7']);
   assert.equal(saved.steps.step0.id, 'mo-1'); assert.equal(saved.steps.step0.text, 'I would read storage.js.');
   assert.deepEqual(Object.keys(saved.steps.step6), ['withoutMemory', 'withMemory']);
@@ -306,4 +334,36 @@ test('--steps re-records only the named steps into an existing recording and kee
   assert.equal(saved.complete, false); assert.equal(typeof saved.updatedAt, 'string'); assert.equal(saved.error, null);
   assert.deepEqual(saved, JSON.parse(JSON.stringify(recording)));
   assert.match(lines.at(-1), /Re-recorded step 6/);
+});
+
+test('phase record with --reset-after-edit: both step 6 runs reset after the first edit; the recording says so', async () => {
+  const dir = await tempDir();
+  const server = fakeServer();
+  const lines = [];
+  const options = parseArgs(['--out', dir, '--reset-after-edit']);
+  await recordPhase(options, { api: server.api, ...fakes(), ...quiet, log: line => lines.push(line) });
+  const created = server.calls.filter(call => call.route === '/api/runs').map(call => call.data);
+  assert.deepEqual(created, planSteps(null, { resetAfterFirstEdit: true }).slice(1).map(item => item.body));
+  assert.deepEqual(created.filter(body => body.resetAfterFirstEdit).length, 2);
+  assert.ok(created.every(body => !('resetAfterCalls' in body)));
+  assert.ok(lines.some(line => /Step 6 resets right after its first file edit\./.test(line)));
+  const saved = await readJson(path.join(dir, 'recording.json'));
+  assert.equal(saved.resetAfterFirstEdit, true);
+  assert.equal(saved.resetAfterCalls, null);
+  assert.equal(saved.steps.step6.withMemory.run.resetAfterFirstEdit, true);
+  assert.equal(saved.steps.step6.withoutMemory.run.resetAfterFirstEdit, true);
+  assert.equal(saved.steps.step5.run.resetAfterFirstEdit, false);
+
+  // Re-recording step 6 by call count afterwards switches the top level back and records why.
+  await recordPhase({ ...DEFAULTS, out: dir, steps: [6], resetAfterCalls: 7 }, { api: fakeServer().api, ...fakes(), ...quiet });
+  const again = await readJson(path.join(dir, 'recording.json'));
+  assert.equal(again.resetAfterFirstEdit, false);
+  assert.equal(again.resetAfterCalls, 7);
+  assert.match(again.superseded[0].reason, /--steps 6 --reset-after 7\./);
+  assert.equal(again.superseded[0].entry.withMemory.run.resetAfterFirstEdit, true);
+  // And back to the first edit: the reason names the flag.
+  await recordPhase(parseArgs(['--out', dir, '--steps', '6', '--reset-after-edit']), { api: fakeServer().api, ...fakes(), ...quiet });
+  const third = await readJson(path.join(dir, 'recording.json'));
+  assert.deepEqual([third.resetAfterFirstEdit, third.resetAfterCalls], [true, null]);
+  assert.match(third.superseded[1].reason, /--steps 6 --reset-after-edit\./);
 });

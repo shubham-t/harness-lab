@@ -44,7 +44,7 @@ async function until(read, predicate, description, timeout = 60000) {
 const textReply = n => ({ status: 'completed', output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: `TEST ONLY scripted reply ${n}.` }] }], usage: { input_tokens: 3, output_tokens: 2 } });
 const callReply = (n, name, args) => ({ status: 'completed', output: [{ type: 'function_call', call_id: `builder-system-${n}`, name, arguments: JSON.stringify(args) }], usage: { input_tokens: 3, output_tokens: 2 } });
 
-test('harness builder: model-only request, loop-only run, builder routes', { timeout: 240000 }, async t => {
+test('harness builder: model-only request, loop-only run, builder routes, reset after the first edit', { timeout: 240000 }, async t => {
   // plan.respond(index) returns [status, body] for the request at that index.
   let plan = null;
   const providerErrors = [];
@@ -280,5 +280,53 @@ test('harness builder: model-only request, loop-only run, builder routes', { tim
       }
     }
     assert.equal((await fetch(`${origin}/builder.js`)).status, 404);
+  });
+  // Work package D: resetAfterFirstEdit over HTTP with the scripted provider.
+  await t.test('resetAfterFirstEdit over HTTP: validation, both presets reset right after their first write, separate evaluation groups', async () => {
+    for (const [options, message] of [
+      [{ mode: 'minimal', resetAfterFirstEdit: 'yes' }, 'resetAfterFirstEdit must be true, false or omitted.'],
+      [{ mode: 'minimal', resetAfterFirstEdit: null }, 'resetAfterFirstEdit must be true, false or omitted.'],
+      [{ mode: 'engineered', resetAfterFirstEdit: true, resetAfterCalls: 5 }, 'Use resetAfterCalls or resetAfterFirstEdit, not both.']
+    ]) {
+      const refused = await api('/api/runs', options);
+      assert.equal(refused.status, 400, JSON.stringify(options));
+      assert.equal(refused.body.error, message);
+    }
+    const memoryText = memory => memory ? 'memory is enabled, so a frozen handoff of recorded progress is supplied to the next session' : 'memory is off, so no handoff is supplied; the next session receives the task and its normal inputs only';
+    const ids = {};
+    // Minimal writes at call 2, Engineered at call 4: the reset follows the work, not the call count.
+    for (const [mode, before, call] of [['minimal', [['list_files', {}]], 2], ['engineered', [['list_files', {}], ['read_file', { path: 'PROJECT.md' }], ['read_file', { path: 'src/storage.js' }]], 4]]) {
+      const script = [...before, ['write_file', { path: 'src/storage.js', content: '// TEST ONLY edit for the first-edit reset\n' }]];
+      plan = { requests: [], respond: index => [200, index < script.length ? callReply(index, ...script[index]) : textReply(index)] };
+      const created = await api('/api/runs', { mode, resetAfterFirstEdit: true });
+      assert.equal(created.status, 201, created.raw);
+      assert.equal(created.body.resetAfterFirstEdit, true);
+      assert.equal(created.body.resetAfterCalls, null);
+      const id = ids[mode] = created.body.id;
+      assert.equal((await api(`/api/runs/${id}/start`, {})).status, 200);
+      const run = (await until(() => api(`/api/runs/${id}`), result => result.body.status !== 'running' && result.body.activeSessionStartedAt === null, `${mode} first-edit run to stop`)).body;
+      assert.equal(run.status, 'budget_exceeded', mode);
+      assert.equal(run.session, 2);
+      const resets = run.events.filter(item => item.kind === 'reset');
+      assert.equal(resets.length, 1);
+      const memory = mode === 'engineered';
+      assert.equal(resets[0].detail, `Configured forced reset after the first file edit (model call ${call}; resetAfterFirstEdit = true); every preset resets at this same point in its work. This is a harness setting that simulates a context limit, not a provider error. The previous API conversation is cleared. The configured memory policy decides what is restored: ${memoryText(memory)}. Workspace files remain as they are.`);
+      assert.deepEqual({ call: resets[0].call, session: resets[0].session, resetAfterFirstEdit: resets[0].resetAfterFirstEdit, memory: resets[0].memory }, { call, session: 1, resetAfterFirstEdit: true, memory });
+      assert.deepEqual({ afterCall: run.forcedReset.afterCall, afterFirstEdit: run.forcedReset.afterFirstEdit, session: run.forcedReset.session }, { afterCall: call, afterFirstEdit: true, session: 1 });
+      assert.ok(run.events.findIndex(item => item.kind === 'edit') < run.events.indexOf(resets[0]));
+      assert.equal(plan.requests[call].input.length, 1, 'Session 2 starts without previous API messages');
+      assert.equal(plan.requests[call].instructions.includes('Restored durable memory'), memory);
+      if (memory) assert.match(plan.requests[call].instructions, /"editedFiles":\[\{"file":"src\/storage.js"/);
+      assert.deepEqual(providerErrors, []);
+    }
+    const evals = (await api('/api/evals')).body;
+    const groups = evals.groups.filter(group => group.model === 'unit-test-model-builder');
+    const edited = groups.filter(group => group.resetAfterFirstEdit === true);
+    assert.deepEqual(edited.map(group => group.runIds).sort(), [[ids.engineered], [ids.minimal]].sort(), 'One group per preset with the flag');
+    assert.ok(edited.every(group => group.resetAfterCalls === null && group.loopOnly === false));
+    const plainMinimal = groups.find(group => group.runIds.includes(minimalId));
+    assert.equal(plainMinimal.resetAfterFirstEdit, false, 'Same model and features without the flag is its own group');
+    assert.equal(plainMinimal.runIds.includes(ids.minimal), false);
+    assert.ok(groups.every(group => typeof group.resetAfterFirstEdit === 'boolean'));
   });
 });
