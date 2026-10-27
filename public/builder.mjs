@@ -494,7 +494,7 @@ function memoryHighlights(slot, entry) {
   // A run that finishes before the reset point never resets. Say so instead of implying a cut-off.
   if (!reset) {
     const point = run.resetAfterCalls ?? reset?.resetAfterCalls ?? null;
-    return [`${label}: ${run.status === 'completed' || run.status === 'awaiting_approval' ? `finished in ${plural(calls ?? 0, 'call')}` : `stopped (${run.status}) after ${plural(calls ?? 0, 'call')}`}${point ? `, before the reset point (call ${point})` : ''}, so it never reset and had no fresh session.`];
+    return [`${label}: ${run.status === 'completed' || run.status === 'awaiting_approval' ? `finished in ${plural(calls ?? 0, 'call')}` : `stopped (${run.status}) after ${plural(calls ?? 0, 'call')}`}${point ? `, ${calls != null && calls < point ? 'before' : 'at'} the reset point (call ${point})` : ''}, so it never reset and had no fresh session.`];
   }
   const cut = `cut off after call ${reset.call ?? '?'}`;
   const handoffEvent = events.some(e => e.kind === 'memory' && e.title === 'Saved handoff included in request');

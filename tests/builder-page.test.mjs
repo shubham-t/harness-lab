@@ -217,7 +217,7 @@ test('handoffCarried: says plainly when the handoff carried nothing useful', () 
   earlyRun.events = earlyRun.events.filter(e => e.kind !== 'reset');
   earlyRun.status = 'completed'; earlyRun.usage = { ...earlyRun.usage, calls: 8 }; earlyRun.resetAfterCalls = 8;
   const earlyLines = proofSummary(6, early).highlights;
-  assert.equal(earlyLines[0], 'Without memory: finished in 8 calls, before the reset point (call 8), so it never reset and had no fresh session.');
+  assert.equal(earlyLines[0], 'Without memory: finished in 8 calls, at the reset point (call 8), so it never reset and had no fresh session.');
   assert.ok(!earlyLines.some(line => /no cut-off recorded/.test(line)));
   assert.equal(EMPTY_HANDOFF_TEXT, 'The reset came before the first edit, so the handoff carried only the source revision: no edited files, no check result, no saved note. The difference in calls between the two runs cannot be attributed to memory.');
   assert.ok(!highlights.some(line => /character handoff/.test(line)));
