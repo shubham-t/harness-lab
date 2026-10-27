@@ -113,6 +113,7 @@ Owner of `scripts/record-builder.mjs` and `tests/record-builder.test.mjs`. Reuse
 
 - Defaults: `--url http://127.0.0.1:4318`, `--out live-validation/builder`, `--reset-after 5`, `--phase record`. `--help` prints usage without contacting the server. Invalid arguments fail before any call (class `UsageError`).
 - Every phase `record` call makes **real, billable model calls** and says so before starting. It refuses to start when no provider is configured.
+- `--steps LIST` (phase `record` only) re-records just the listed steps (0 to 7) into an existing recording. The earlier entries move to a top-level `superseded` array with a timestamp and reason, their screenshots are renamed with a `superseded-<time>-` prefix, and their exports stay on disk: earlier evidence is immutable. Re-recording step 6 updates the recording's `resetAfterCalls`; re-recording step 7 clears `complete`.
 
 ### C2. Phase `record`
 

@@ -26,6 +26,9 @@ export const USAGE = `Usage: node scripts/record-builder.mjs [options]
                       Writes DIR/recording.json, DIR/runs/*.json and DIR/screens/*.png.
   --reset-after N     Step 6 forces a fresh session after model call N (${RESET_AFTER_CALLS.min} to ${RESET_AFTER_CALLS.max}, default ${DEFAULTS.resetAfterCalls}).
                       Only the two step-6 runs use it. Phase record only.
+  --steps LIST        Phase record only: re-record just these steps (comma-separated, 0 to 7) into an
+                      existing recording. The earlier entries and their screenshots are kept as
+                      superseded evidence; nothing is deleted.
   --phase NAME        record (default): step 0 model-only request, then runs for steps 1 to 7.
                       Stops when step 7 waits for approval. This script never approves.
                       finish: after you approved step 7 in the dashboard, re-exports it,
@@ -36,11 +39,11 @@ It refuses to start without a configured provider or over an existing recording.
 
 export class UsageError extends Error {}
 
-const VALUED = ['--url', '--out', '--reset-after', '--phase'];
+const VALUED = ['--url', '--out', '--reset-after', '--phase', '--steps'];
 const FLAGS = ['--help'];
 
 export function parseArgs(argv) {
-  const options = { ...DEFAULTS, help: false };
+  const options = { ...DEFAULTS, steps: null, help: false };
   const seen = new Set();
   for (let i = 0; i < argv.length; i++) {
     const name = argv[i];
@@ -59,12 +62,18 @@ export function parseArgs(argv) {
       const n = Number(value);
       if (!/^\d+$/.test(value) || n < RESET_AFTER_CALLS.min || n > RESET_AFTER_CALLS.max) throw new UsageError(`--reset-after must be an integer from ${RESET_AFTER_CALLS.min} to ${RESET_AFTER_CALLS.max}.`);
       options.resetAfterCalls = n;
+    } else if (name === '--steps') {
+      const steps = value.split(',').map(item => item.trim());
+      if (!steps.every(item => /^[0-7]$/.test(item))) throw new UsageError('--steps lists step numbers from 0 to 7, separated by commas.');
+      if (new Set(steps).size !== steps.length) throw new UsageError('--steps lists a step more than once.');
+      options.steps = steps.map(Number).sort();
     } else if (name === '--phase') {
       if (!PHASES.includes(value)) throw new UsageError(`--phase must be ${PHASES.join(' or ')}.`);
       options.phase = value;
     }
   }
   if (options.phase === 'finish' && seen.has('--reset-after')) throw new UsageError('--reset-after applies only to --phase record.');
+  if (options.phase === 'finish' && options.steps) throw new UsageError('--steps applies only to --phase record.');
   return options;
 }
 
@@ -199,19 +208,52 @@ export async function recordPhase(options, deps = {}) {
   const { api, log, wait, now, exportRun, openScreens, pollMs, timeoutMs } = { ...defaults, ...deps };
   const out = path.resolve(options.out);
   const recordingFile = path.join(out, 'recording.json');
-  const plan = planSteps(options.resetAfterCalls);
+  const selected = options.steps ? new Set(options.steps) : null;
+  const plan = planSteps(options.resetAfterCalls).filter(item => !selected || selected.has(item.step));
   const runCount = plan.filter(item => !item.modelOnly).length;
-  log(`Phase record makes real, billable model calls: 1 model-only request (step 0) and ${runCount} runs (steps 1 to 7, two runs for step 6), up to 24 model calls each. Same task, starting files and budgets; only the harness differs. This script never approves.`);
-  if (await exists(recordingFile)) throw new Error(`${recordingFile} already exists. Earlier evidence is kept: move it aside or choose another --out. No request was made.`);
+  const modelOnlyCount = plan.filter(item => item.modelOnly).length;
+  log(`Phase record makes real, billable model calls: ${modelOnlyCount} model-only request${modelOnlyCount === 1 ? '' : 's'} (step 0) and ${runCount} run${runCount === 1 ? '' : 's'} (${selected ? 'steps ' + [...selected].join(', ') : 'steps 1 to 7, two runs for step 6'}), up to 24 model calls each. Same task, starting files and budgets; only the harness differs. This script never approves.`);
+  // Re-recording selected steps keeps the earlier entries and their screenshots as superseded evidence.
+  let existing = null;
+  if (selected) {
+    try { existing = JSON.parse(await fs.readFile(recordingFile, 'utf8')); }
+    catch (error) { throw new Error(error.code === 'ENOENT' ? `--steps re-records into an existing recording, but ${recordingFile} does not exist. Run a full record phase first. No request was made.` : `${recordingFile} could not be read: ${error.message}`); }
+  } else if (await exists(recordingFile)) throw new Error(`${recordingFile} already exists. Earlier evidence is kept: move it aside, choose another --out, or re-record selected steps with --steps. No request was made.`);
   const state = await api('/api/state');
   if (!state.provider?.configured) throw new Error('No model provider is configured. Open the local setup screen and configure a real model connection first. No request was made.');
   const previewOrigin = state.previewOrigin;
   if (!previewOrigin) throw new Error('The server did not report its preview origin. No request was made.');
-  const recording = {
+  const recording = existing || {
     note: NOTE, recordedAt: new Date().toISOString(), finishedAt: null, complete: false,
     model: state.provider.model, baseUrl: state.provider.baseUrl, protocol: state.provider.protocol, origin: options.url,
     resetAfterCalls: options.resetAfterCalls, scenario: SCENARIO, error: null, steps: {}
   };
+  if (existing) {
+    if (existing.model !== state.provider.model) throw new Error(`The recording used model "${existing.model}" but the server is configured for "${state.provider.model}". Every step must use the same model. No request was made.`);
+    recording.error = null;
+    recording.updatedAt = new Date().toISOString();
+    recording.superseded ||= [];
+    if (selected.has(6)) recording.resetAfterCalls = options.resetAfterCalls;
+    if (selected.has(7)) { recording.complete = false; recording.finishedAt = null; }
+    for (const step of selected) {
+      const key = `step${step}`;
+      if (!recording.steps[key]) continue;
+      const entry = recording.steps[key];
+      const stamp = Date.now();
+      for (const part of entry.runId ? [entry] : Object.values(entry)) {
+        for (const [name, file] of Object.entries(part.screens || {})) {
+          if (!file) continue;
+          const moved = rel('screens', `superseded-${stamp}-${path.basename(file)}`);
+          await fs.mkdir(path.join(out, 'screens'), { recursive: true });
+          await fs.rename(path.join(out, file), path.join(out, moved)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+          part.screens[name] = moved;
+        }
+      }
+      recording.superseded.push({ step: key, supersededAt: new Date(stamp).toISOString(), reason: `Re-recorded with --steps ${[...selected].join(',')}${selected.has(6) ? ` --reset-after ${options.resetAfterCalls}` : ''}.`, entry });
+      delete recording.steps[key];
+      log(`[${key}] earlier entry kept as superseded evidence; its screenshots were renamed with a superseded- prefix.`);
+    }
+  }
   log(`Model: ${recording.model} (${recording.protocol}, ${recording.baseUrl}). Scenario: ${SCENARIO}. Step 6 resets after model call ${options.resetAfterCalls}. Writing to ${out}.`);
   const save = () => writeJsonAtomic(recordingFile, recording, 'recording.json');
   await save();
@@ -271,7 +313,8 @@ export async function recordPhase(options, deps = {}) {
   } finally {
     if (screens) await screens.close().catch(() => {});
   }
-  log(APPROVAL_MESSAGE);
+  if (!selected || selected.has(7)) log(APPROVAL_MESSAGE);
+  else log(`Re-recorded ${[...selected].map(step => 'step ' + step).join(', ')}. Earlier entries are under "superseded" in ${recordingFile}.`);
   return recording;
 }
 

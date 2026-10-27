@@ -208,7 +208,7 @@ export const STEPS = [
   { id: 6, title: 'Memory and state', component: 'memory', recordingKey: 'step6',
     problem: 'Long work gets cut off. A fresh session forgets everything the previous one learned.',
     add: 'A saved handoff: when a session is cut off, the next one starts from what was recorded.',
-    look: 'Both runs were cut off at the same call. Compare what each fresh session started with.' },
+    look: 'Both runs were set to reset at the same call. Compare what each fresh session started with, and how each run ended.' },
   { id: 7, title: 'Guardrails: approval', component: 'guardrails', recordingKey: 'step7',
     problem: 'Everything so far could still ship by itself. Nobody decides.',
     add: 'An approval step: the change waits for a person before it reaches production.',
@@ -488,13 +488,32 @@ function memoryHighlights(slot, entry) {
   const label = slot === 'withMemory' ? 'With memory' : 'Without memory';
   const run = entry?.run;
   if (!run) return [`${label}: ${NOT_RECORDED}`];
-  const reset = (run.events || []).find(e => e.kind === 'reset');
-  const cut = reset ? `cut off after call ${reset.call ?? '?'}` : 'no cut-off recorded';
-  const handoffEvent = (run.events || []).some(e => e.kind === 'memory' && e.title === 'Saved handoff included in request');
-  if (!handoffEvent) return [`${label}: ${cut}; the fresh session got the task and files only.`];
-  const carried = handoffCarried(handoffOf(run));
-  if (!carried) return [`${label}: ${cut}; the fresh session got a saved handoff, but its contents could not be read.`];
-  return [`${label}: ${cut}; the fresh session got a saved handoff.`, carried.empty ? EMPTY_HANDOFF_TEXT : carriedText(carried)];
+  const events = run.events || [];
+  const reset = events.find(e => e.kind === 'reset');
+  const calls = run.usage?.calls ?? null;
+  // A run that finishes before the reset point never resets. Say so instead of implying a cut-off.
+  if (!reset) {
+    const point = run.resetAfterCalls ?? reset?.resetAfterCalls ?? null;
+    return [`${label}: ${run.status === 'completed' || run.status === 'awaiting_approval' ? `finished in ${plural(calls ?? 0, 'call')}` : `stopped (${run.status}) after ${plural(calls ?? 0, 'call')}`}${point ? `, before the reset point (call ${point})` : ''}, so it never reset and had no fresh session.`];
+  }
+  const cut = `cut off after call ${reset.call ?? '?'}`;
+  const handoffEvent = events.some(e => e.kind === 'memory' && e.title === 'Saved handoff included in request');
+  const lines = [];
+  if (!handoffEvent) lines.push(`${label}: ${cut}; the fresh session got the task and files only.`);
+  else {
+    const carried = handoffCarried(handoffOf(run));
+    if (!carried) lines.push(`${label}: ${cut}; the fresh session got a saved handoff, but its contents could not be read.`);
+    else lines.push(`${label}: ${cut}; the fresh session got a saved handoff.`, carried.empty ? EMPTY_HANDOFF_TEXT : carriedText(carried));
+  }
+  lines.push(sessionOutcome(label, run, calls));
+  return lines;
+}
+// How the run ended after the cut-off, from its recorded status only.
+function sessionOutcome(label, run, calls) {
+  const requested = (run.events || []).some(e => e.kind === 'tool' && e.tool === 'request_completion');
+  if (run.status === 'completed' || run.status === 'awaiting_approval') return `${label}, after the cut-off: ${run.status === 'completed' ? 'completed' : 'reached the approval boundary'} after ${plural(calls ?? 0, 'call')} in total.`;
+  if (run.status === 'budget_exceeded') return `${label}, after the cut-off: stopped at its budget after ${plural(calls ?? 0, 'call')} in total${requested ? '' : ' without requesting completion'}. A handoff carries state; it does not make the model stop.`;
+  return `${label}, after the cut-off: ${run.status} after ${plural(calls ?? 0, 'call')} in total.`;
 }
 export function proofSummary(stepId, recording) {
   const entry = stepEntry(recording, stepId);

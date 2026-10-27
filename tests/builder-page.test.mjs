@@ -163,7 +163,13 @@ test('proofSummary: footer facts, highlights and the Not recorded yet fallback',
   const s6 = proofSummary(6, recording);
   assert.deepEqual(s6.footers.map(x => x.label), ['Without memory', 'With memory']);
   assert.match(s6.highlights[0], /cut off after call 8; the fresh session got the task and files only/);
-  assert.deepEqual(s6.highlights.slice(1), ['With memory: cut off after call 8; the fresh session got a saved handoff.', 'The handoff carried a check result, a saved note and 1 recent action, plus the source revision.']);
+  assert.deepEqual(s6.highlights, [
+    'Without memory: cut off after call 8; the fresh session got the task and files only.',
+    'Without memory, after the cut-off: stopped at its budget after 24 calls in total without requesting completion. A handoff carries state; it does not make the model stop.',
+    'With memory: cut off after call 8; the fresh session got a saved handoff.',
+    'The handoff carried a check result, a saved note and 1 recent action, plus the source revision.',
+    'With memory, after the cut-off: stopped at its budget after 24 calls in total without requesting completion. A handoff carries state; it does not make the model stop.'
+  ]);
   assert.match(proofSummary(7, recording).highlights.join('\n'), /Files changed: src\/storage\.js/);
   assert.deepEqual(proofSummary(4, recording), { recorded: false, message: NOT_RECORDED, footers: [], highlights: [] });
   for (let step = 0; step <= 7; step++) {
@@ -201,7 +207,18 @@ test('handoffCarried: says plainly when the handoff carried nothing useful', () 
   handoffEvent.content = `Restored durable memory from a previous model session (frozen at session start):\n${JSON.stringify(emptyHandoff)}`;
   assert.equal(handoffCarried(handoffOf({ ...emptyRun, sessionHandoff: undefined })).empty, true);
   const highlights = proofSummary(6, empty).highlights;
-  assert.equal(highlights.at(-1), EMPTY_HANDOFF_TEXT);
+  assert.ok(highlights.includes(EMPTY_HANDOFF_TEXT), highlights.join(' | '));
+  // Every run that reset also states how it ended, from its recorded status only.
+  assert.match(highlights.at(-1), /^With memory, after the cut-off: (completed|stopped at its budget|reached the approval boundary)/);
+  // A run that finishes before the reset point never resets; the page says so instead of implying a cut-off.
+  const early = builderRecording();
+  const earlyRun = stepEntry(early, 6).withoutMemory.run;
+  earlyRun.fixtureNote = 'TEST-ONLY synthetic: finished before the reset point.';
+  earlyRun.events = earlyRun.events.filter(e => e.kind !== 'reset');
+  earlyRun.status = 'completed'; earlyRun.usage = { ...earlyRun.usage, calls: 8 }; earlyRun.resetAfterCalls = 8;
+  const earlyLines = proofSummary(6, early).highlights;
+  assert.equal(earlyLines[0], 'Without memory: finished in 8 calls, before the reset point (call 8), so it never reset and had no fresh session.');
+  assert.ok(!earlyLines.some(line => /no cut-off recorded/.test(line)));
   assert.equal(EMPTY_HANDOFF_TEXT, 'The reset came before the first edit, so the handoff carried only the source revision: no edited files, no check result, no saved note. The difference in calls between the two runs cannot be attributed to memory.');
   assert.ok(!highlights.some(line => /character handoff/.test(line)));
 });

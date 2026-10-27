@@ -20,15 +20,18 @@ const readJson = async file => JSON.parse(await fs.readFile(file, 'utf8'));
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 test('defaults, valid values and invalid arguments', () => {
-  assert.deepEqual(parseArgs([]), { url: 'http://127.0.0.1:4318', out: 'live-validation/builder', resetAfterCalls: 5, phase: 'record', help: false });
+  assert.deepEqual(parseArgs([]), { url: 'http://127.0.0.1:4318', out: 'live-validation/builder', resetAfterCalls: 5, phase: 'record', steps: null, help: false });
   const custom = parseArgs(['--url', 'http://localhost:5000/x', '--out', 'tmp/rec', '--reset-after', String(RESET_AFTER_CALLS.max), '--phase', 'record']);
-  assert.deepEqual(custom, { url: 'http://localhost:5000', out: 'tmp/rec', resetAfterCalls: RESET_AFTER_CALLS.max, phase: 'record', help: false });
+  assert.deepEqual(custom, { url: 'http://localhost:5000', out: 'tmp/rec', resetAfterCalls: RESET_AFTER_CALLS.max, phase: 'record', steps: null, help: false });
   assert.equal(parseArgs(['--phase', 'finish']).phase, 'finish');
   assert.equal(parseArgs(['--help']).help, true);
+  assert.deepEqual(parseArgs(['--steps', '6']).steps, [6]);
+  assert.deepEqual(parseArgs(['--steps', '7, 0,6']).steps, [0, 6, 7]);
   for (const argv of [
     ['--phase', 'approve'], ['--phase'], ['--reset-after', String(RESET_AFTER_CALLS.min - 1)], ['--reset-after', String(RESET_AFTER_CALLS.max + 1)],
     ['--reset-after', '2.5'], ['--reset-after', 'five'], ['--url', 'not a url'], ['--url', 'ftp://127.0.0.1'], ['--out'], ['--out', '--phase'],
-    ['--trials', '1'], ['--help', '--help'], ['--out', 'a', '--out', 'b'], ['--phase', 'finish', '--reset-after', '5']
+    ['--trials', '1'], ['--help', '--help'], ['--out', 'a', '--out', 'b'], ['--phase', 'finish', '--reset-after', '5'],
+    ['--steps', '8'], ['--steps', '6,6'], ['--steps', ''], ['--steps', 'six'], ['--phase', 'finish', '--steps', '6']
   ]) assert.throws(() => parseArgs(argv), UsageError, argv.join(' '));
 });
 
@@ -265,4 +268,42 @@ test('phase finish refuses until step 7 is completed and applied, then completes
   assert.deepEqual(step7.screens, { sandbox: 'screens/step7-sandbox.png', productionBefore: 'screens/step7-production-before.png', productionAfter: 'screens/step7-production-after.png' });
   assert.deepEqual(fake.shots.map(shot => shot.url), [`${PREVIEW}/production/${step7Id}/index.html`]);
   await assert.rejects(finishPhase({ ...DEFAULTS, out: dir, phase: 'finish' }, { api: server.api, ...fake, ...quiet }), /already complete/);
+});
+
+test('--steps re-records only the named steps into an existing recording and keeps the earlier entries as superseded evidence', async () => {
+  const dir = await tempDir();
+  const first = fakeServer();
+  await recordPhase({ ...DEFAULTS, out: dir }, { api: first.api, ...fakes(), ...quiet });
+  const before = await readJson(path.join(dir, 'recording.json'));
+  await fs.mkdir(path.join(dir, 'screens'), { recursive: true });
+  for (const name of ['step6-without-memory-sandbox.png', 'step6-without-memory-production.png', 'step6-with-memory-sandbox.png', 'step6-with-memory-production.png']) await fs.writeFile(path.join(dir, 'screens', name), 'png');
+  // Without --steps an existing recording is refused; with --steps it must exist.
+  await assert.rejects(recordPhase({ ...DEFAULTS, out: dir }, { api: fakeServer().api, ...fakes(), ...quiet }), /already exists/);
+  await assert.rejects(recordPhase({ ...DEFAULTS, out: await tempDir(), steps: [6] }, { api: fakeServer().api, ...fakes(), ...quiet }), /does not exist/);
+  const second = fakeServer();
+  const fake = fakes();
+  const lines = [];
+  const recording = await recordPhase({ ...DEFAULTS, out: dir, steps: [6], resetAfterCalls: 8 }, { api: second.api, ...fake, ...quiet, log: line => lines.push(line) });
+  assert.match(lines[0], /1 model-only request.*0 runs|0 model-only requests.*2 runs/);
+  assert.ok(!second.calls.some(call => call.route === '/api/model/task-only'), 'step 0 is not repeated');
+  const created = second.calls.filter(call => call.route === '/api/runs').map(call => call.data);
+  assert.deepEqual(created, planSteps(8).filter(item => item.step === 6).map(item => item.body));
+  assert.ok(!second.calls.some(call => /approve/.test(call.route)));
+  const saved = await readJson(path.join(dir, 'recording.json'));
+  // Other steps are byte-for-byte what they were; step 6 is new; the old step 6 is kept.
+  for (const key of ['step0', 'step1', 'step2', 'step3', 'step4', 'step5', 'step7']) assert.deepEqual(saved.steps[key], before.steps[key], key);
+  assert.equal(saved.resetAfterCalls, 8);
+  assert.equal(saved.steps.step6.withMemory.run.resetAfterCalls, 8);
+  assert.notEqual(saved.steps.step6.withMemory.runId, before.steps.step6.withMemory.runId);
+  assert.equal(saved.superseded.length, 1);
+  assert.equal(saved.superseded[0].step, 'step6');
+  assert.match(saved.superseded[0].reason, /--steps 6 --reset-after 8/);
+  assert.equal(saved.superseded[0].entry.withMemory.runId, before.steps.step6.withMemory.runId);
+  assert.match(saved.superseded[0].entry.withMemory.screens.sandbox, /^screens\/superseded-\d+-step6-with-memory-sandbox\.png$/);
+  assert.ok(await fs.readFile(path.join(dir, saved.superseded[0].entry.withMemory.screens.sandbox), 'utf8') === 'png', 'the old screenshot was moved, not deleted');
+  assert.ok(await fs.readFile(path.join(dir, before.steps.step6.withMemory.export)), 'the old export stays on disk');
+  assert.deepEqual(fake.shots.map(shot => path.relative(dir, shot.file).split(path.sep).join('/')), ['screens/step6-without-memory-sandbox.png', 'screens/step6-without-memory-production.png', 'screens/step6-with-memory-sandbox.png', 'screens/step6-with-memory-production.png']);
+  assert.equal(saved.complete, false); assert.equal(typeof saved.updatedAt, 'string'); assert.equal(saved.error, null);
+  assert.deepEqual(saved, JSON.parse(JSON.stringify(recording)));
+  assert.match(lines.at(-1), /Re-recorded step 6/);
 });
