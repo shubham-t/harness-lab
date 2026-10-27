@@ -3,8 +3,8 @@
 ## Fresh checkout
 
 ```powershell
-git clone https://github.com/shubham-t/harness-codex.git
-cd harness-codex
+git clone -b v4-redesign https://github.com/shubham-t/harness-lab.git
+cd harness-lab
 npm ci
 npx playwright install chromium
 $env:HARNESS_DATA_DIR = Join-Path $PWD '.data'

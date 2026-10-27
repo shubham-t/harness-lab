@@ -13,8 +13,8 @@ For the latest tested state, real-run outcomes, limitations and next work, read 
 Requires Node.js 22+ and a Chromium browser.
 
 ```powershell
-git clone https://github.com/shubham-t/harness-codex.git
-cd harness-codex
+git clone -b v4-redesign https://github.com/shubham-t/harness-lab.git
+cd harness-lab
 npm.cmd ci
 npx.cmd playwright install chromium
 $env:HARNESS_DATA_DIR = Join-Path $PWD '.data'
