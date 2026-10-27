@@ -1,0 +1,163 @@
+{
+  "note": "Real model runs. Results come from recorded run events and presenter checks after each agent stopped. Small samples are illustrative, not reliability estimates.",
+  "startedAt": "2026-10-26T17:02:31.430Z",
+  "endedAt": null,
+  "complete": false,
+  "error": null,
+  "model": "poolside/laguna-s-2.1:free",
+  "origin": "http://127.0.0.1:4318",
+  "options": {
+    "ladder": true,
+    "rungs": [
+      "minimal",
+      "verification",
+      "verification+instructions+context",
+      "verification+instructions+context+memory",
+      "engineered"
+    ],
+    "trials": 1,
+    "scenarios": [
+      "draft",
+      "unicode",
+      "longform"
+    ],
+    "resetAfterCalls": null
+  },
+  "runs": [
+    {
+      "trial": 1,
+      "scenario": "draft",
+      "rung": "minimal",
+      "runId": "08a5357a-b548-441b-b946-7af81e0263ec",
+      "mode": "minimal",
+      "features": {
+        "instructions": false,
+        "context": false,
+        "memory": false,
+        "verification": false,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "poolside/laguna-s-2.1:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "failed",
+      "visible": {
+        "passed": 4,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 3,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 1,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "total": 0,
+        "unreportedRequests": 1
+      },
+      "elapsedMs": 6049,
+      "appliedWithoutReview": false,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "draft",
+      "rung": "verification",
+      "runId": "a20beb63-b0f0-403a-9cd7-911d4ebdca70",
+      "mode": "minimal",
+      "features": {
+        "instructions": false,
+        "context": false,
+        "memory": false,
+        "verification": true,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "poolside/laguna-s-2.1:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "budget_exceeded",
+      "visible": {
+        "passed": 5,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "2557bd545a6e",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 4,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "2557bd545a6e",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 6,
+      "tokens": {
+        "input": 45283,
+        "output": 14432,
+        "total": 59715,
+        "unreportedRequests": 0
+      },
+      "elapsedMs": 299817,
+      "appliedWithoutReview": false,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "draft",
+      "rung": "verification+instructions+context",
+      "runId": "42ddcee7-6997-4d8e-be61-f36caa802cb2",
+      "mode": "minimal",
+      "features": {
+        "instructions": true,
+        "context": true,
+        "memory": false,
+        "verification": true,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "poolside/laguna-s-2.1:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "failed",
+      "visible": {
+        "passed": 4,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 3,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 1,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "total": 0,
+        "unreportedRequests": 1
+      },
+      "elapsedMs": 5483,
+      "appliedWithoutReview": false,
+      "claimedWithoutRefreshTest": false
+    }
+  ]
+}

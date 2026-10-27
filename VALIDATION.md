@@ -2,7 +2,11 @@
 
 For the latest run outcomes, CI revisions and remaining work, see [Project status](docs/PROJECT-STATUS.md). This record covers both API-free checks and separately identified live-provider evidence.
 
-## Current v3 update · 26 October 2026
+## Current v4 update · 26 October 2026
+
+**136 automated tests passed, 0 failed, 0 skipped (131 before the transport pacing and retry change, which added five unit tests); 18 readiness checks passed** on the v4 working tree (Windows, Node 24.19.0). The v4 tests use scripted test-only providers, the test-only reference patches in `tests/support/` and real Chromium. They establish implementation behavior for the two check tiers, the harness-owned ticket context, the production route, the forced session reset, the dashboard panels and the ladder script. See [the v4 design](docs/REDESIGN-V4.md). **First live v4 evidence recorded the same day:** a five-rung ladder across the draft, unicode and longform scenarios (15 runs) plus a forced-reset ladder on draft (5 runs) with `cohere/north-mini-code:free`, approvals after diff inspection, and 29 exported traces. See [the v4 live report](live-validation/v4/RESULTS.md). One trial per cell; no reliability claim. Everything below is historical v3 and v2 evidence.
+
+## Earlier v3 update · 26 October 2026 (historical)
 
 **80 automated tests passed; 16 readiness checks passed.** A final focused UI/explanation run passed 13 tests. See [the v3 verification report](live-validation/v3/RESULTS.md) for fault-injection coverage, compact handoff behavior, audience comparison, the fixed evaluation-lock race and sequential test scheduling. Seven fresh real-provider trials are recorded: the fallback Draft pair completed and both published apps passed separate browser validation; the other runs preserve provider failures and fresh-session budget stops. The results below describe the earlier v2 baseline and must not be represented as new v3 model outcomes.
 

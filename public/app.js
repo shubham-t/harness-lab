@@ -1,6 +1,6 @@
 'use strict';
 import { COMPONENTS, anatomyState } from './anatomy.mjs';
-import { outcome, comparableRuns, preset } from './lesson.mjs';
+import { outcome, comparableRuns, preset, latestHeldOut, productionBanner, claimsEvidence, promptInputs, ladderFilters, ladderTable } from './lesson.mjs';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -47,9 +47,9 @@ function hydrateIcons(root = document) { $$('[data-icon]', root).forEach(el => {
 
 const concepts = {
   instructions: {name:'Instructions & policies',icon:'file',short:'Project rules for how the agent should work.',description:'Project instructions ask the model to preserve existing notes, user text and appearance, and use the existing storage module. Supplying instructions does not prove compliance; inspect the diff and tests.',example:'Open a Project rules included in request event to see the actual policies supplied. The repository map is supplied separately by Context management.'},
-  context: {name:'Context management',icon:'folder',short:'Repository information for the current task.',description:'Context management supplies the project map, accessible file sizes and current revision. Basic task text and conversation remain available in both presets.',example:'Open a Project context included in request event to see the actual map and revision sent to the model.'},
+  context: {name:'Context management',icon:'folder',short:'Repository information for the current task.',description:'Context management supplies the project map, accessible file sizes and current revision. From harness v4 it also supplies the related ticket thread PN-142: knowledge from outside the repository that the agent cannot read with its tools. Basic task text and conversation remain available in both presets.',example:'Open a Project context included in request event to see the actual map, revision and ticket thread sent to the model.'},
   memory: {name:'Memory & state',icon:'layers',short:'Carry recorded work into a fresh model session.',description:'A fresh session starts a new conversation with the model. Durable memory can carry forward an explicit record of progress, findings and next steps. It is useful only when that record exists and is accurate.',example:'Pause a run, inspect the Memory tab, then choose New session. Compare the recorded handoff with the context loaded into the next session.'},
-  verification: {name:'Verification',icon:'checkCircle',short:'Require observable behavior from a real browser.',description:'A convincing explanation is not proof that the application works. Verification executes behavioral checks in a browser and records what passed, what failed and which source revision was checked.',example:'Run checks before the fix to observe the failing behavior. After the agent edits the source, rerun the same checks and inspect their evidence.'},
+  verification: {name:'Verification',icon:'checkCircle',short:'Require observable behavior from a real browser.',description:'A convincing explanation is not proof that the application works. Verification executes behavioral checks in a browser and records what passed, what failed and which source revision was checked. Checks have two tiers: the visible checks the agent can run when this feature is on, and held-out checks that only the presenter runs and the agent never sees.',example:'Run checks before the fix to observe the failing behavior. After the agent edits the source, rerun the same checks and inspect their evidence. Held-out results appear in their own group.'},
   permissions: {name:'Guardrails · approval',icon:'shield',short:'Require approval before publishing to the isolated copy.',description:'The agent works inside an isolated workspace. The server always enforces its tool boundary. With this feature enabled, completion also waits for explicit human approval before publishing the source to this run’s isolated copy.',example:'When this feature is disabled, the agent can publish automatically to its isolated copy. Test permission boundary sends a harmless, explicitly labelled protected-file probe through the tool gate. Inspect the resulting permission event.'},
 };
 const statuses = {ready:'Ready to run',running:'Running',pausing:'Pausing',paused:'Paused',interrupted:'Interrupted',awaiting_approval:'Awaiting approval',completed:'Completed',failed:'Failed',budget_exceeded:'Budget reached'};
@@ -59,6 +59,8 @@ let selectedRunId = sessionStorage.getItem('harness-selected-run');
 let currentView = ['workbench','evals','guide'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'workbench';
 let activePanel = 'activity';
 let previewKey = '';
+let productionKey = '';
+let ladderFilter = '';
 let eventSignature = '';
 let memorySignature = '';
 let checksSignature = '';
@@ -115,6 +117,7 @@ function applyFocusMode() {
   $('#focus-toggle').setAttribute('aria-pressed',String(active));
   $('#focus-toggle').innerHTML = `${svg(active ? 'minimize' : 'maximize')}<span>${active ? 'Exit focus' : 'Focus demo'}</span>`;
   $('#focus-proof-button').hidden = !active;
+  fitPhones();
 }
 async function refreshState() {
   if (pollInFlight) return;
@@ -139,8 +142,8 @@ async function refreshState() {
     if (!appState) text('#preview-placeholder','Start the local server to open this workspace.');
   } finally { pollInFlight = false; }
 }
-async function createWorkspace(mode, features, scenario, notify = true) {
-  const result = await api('/api/runs',{method:'POST',body:{mode,features,scenario}});
+async function createWorkspace(mode, features, scenario, notify = true, resetAfterCalls = null) {
+  const result = await api('/api/runs',{method:'POST',body:{mode,features,scenario,...(resetAfterCalls == null ? {} : {resetAfterCalls})}});
   const run = result.run || result;
   if (!run.id) throw new Error('The server did not return a workspace id.');
   selectedRunId = run.id;
@@ -183,6 +186,9 @@ function render() {
     $('#notes-frame').src = `${previewURL}?revision=${encodeURIComponent(run.revision ?? 0)}`;
     $('#open-preview').href = previewURL;
   }
+  renderProduction(run, origin);
+  const claimable = (run.events || []).some(event => event.kind === 'tool' && event.tool === 'request_completion');
+  $('#claims-button').hidden = !claimable;
   $('#activity-badge').className = `live-badge ${run.status}`;
   $('#activity-badge').innerHTML = `<span></span>${escapeHTML(({awaiting_approval:'REVIEW',budget_exceeded:'LIMIT',interrupted:'INTERRUPTED'}[run.status] || run.status || 'READY').toUpperCase())}`;
   const events = run.events || [];
@@ -224,6 +230,42 @@ function render() {
   $('#control-note').innerHTML = `${svg('shield')}<span>${escapeHTML(note)}</span>`;
   renderEvals();
 }
+function renderProduction(run, origin) {
+  // Production is the published copy after publish(), otherwise the pristine fixture (served by the preview origin).
+  const rev = run.appliedRevision || 'original';
+  const url = `${origin}/production/${encodeURIComponent(run.id)}/index.html?rev=${encodeURIComponent(rev)}`;
+  const key = `${run.id}:${rev}`;
+  if (key !== productionKey) {
+    productionKey = key;
+    $('#production-placeholder').hidden = false;
+    $('#production-frame').src = url;
+    $('#open-production').href = url;
+  }
+  const banner = productionBanner(run, time);
+  const el = $('#production-banner');
+  if (el.textContent !== banner.text || el.dataset.state !== banner.state) { el.textContent = banner.text; el.dataset.state = banner.state; fitPhones(); }
+}
+// Scale both phones so they fit the card. Fixed-height layouts (Focus mode) also shorten the phone.
+function fitPhones() {
+  const stage = $('#phone-stage'); if (!stage || stage.offsetParent === null) return;
+  const focus = document.body.classList.contains('focus-mode');
+  const fixedHeight = focus && (innerWidth > 700 || innerWidth <= 620);
+  const maxScale = focus ? .7 : innerWidth >= 1600 ? .86 : .81;
+  const style = getComputedStyle(stage);
+  const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight), padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+  const gap = parseFloat(style.columnGap) || 0, rowGap = parseFloat(style.rowGap) || 0;
+  let scale = Math.max(.2, Math.min(maxScale, (stage.clientWidth - padX - gap) / 740)), height = 688;
+  for (let pass = 0; pass < 2; pass++) {
+    stage.style.setProperty('--phone-scale', scale.toFixed(4));
+    if (!fixedHeight) break;
+    const head = Math.max(...$$('.phone-caption', stage).map(el => el.offsetHeight));
+    const available = stage.clientHeight - padY - head - rowGap;
+    height = Math.min(718, available / scale);
+    if (height < 300) { height = 300; scale = Math.max(.2, available / 300); }
+  }
+  stage.style.setProperty('--phone-scale', scale.toFixed(4));
+  stage.style.setProperty('--phone-h', `${Math.floor(height)}px`);
+}
 function renderAnatomy(run) {
   const state = anatomyState(run);
   const signature = JSON.stringify([run.id,state]);
@@ -245,25 +287,44 @@ function showLesson() {
   const run = currentRun(); if (!run) return;
   const result = outcome(run, appState.checkSuiteVersion);
   const matches = comparableRuns(run, appState.runs);
-  const rows = candidate => { const r = outcome(candidate, appState.checkSuiteVersion); return [r.source, statuses[candidate.status] || candidate.status, r.required, r.approval, r.publication, `${candidate.usage?.calls || 0} real model calls`]; };
-  openModal('What does this run show?', 'EXPLAIN & COMPARE', `<p class="lesson-lead">${escapeHTML(result.explanation)}</p>${result.stopReason ? `<p class="lesson-next"><strong>Recorded stopping reason:</strong> ${escapeHTML(result.stopReason)}</p>` : ''}${matches.length ? '<details><summary>Explain the selected run</summary>' : ''}<dl class="lesson-results"><div><dt>Does the source pass the checks?</dt><dd>${escapeHTML(result.source)}</dd></div><div><dt>What did completion require?</dt><dd>${escapeHTML(result.required)}</dd></div><div><dt>Was the patch applied?</dt><dd>${escapeHTML(result.publication)}</dd></div></dl>${matches.length ? '</details>' : ''}<p class="lesson-next"><strong>Next:</strong> ${escapeHTML(result.next)}</p><h3>Compare actual runs</h3>${matches.length ? `<label for="compare-run">Other harness · same task, scenario, model, harness version and session count</label><select id="compare-run">${matches.map(r => `<option value="${escapeHTML(r.id)}">${preset(r)} · ${prettyId(r.id)} · ${escapeHTML(statuses[r.status] || r.status)}</option>`).join('')}</select><div id="lesson-comparison"></div><p>Each column is one independent run. This comparison does not establish which component caused the outcome.</p>` : '<p>No matching opposite-preset model run is available yet. Prepare and run the other preset with the same scenario and provider. Unrun workspaces and different models, harness versions or session counts are excluded.</p>'}<p class="lesson-takeaway"><strong>If both fix the bug:</strong> the contrast is still visible in what the harness required before completion and application.</p><div class="dialog-actions"><button class="button button-secondary" id="lesson-refresh">Refresh evidence</button><button class="button button-primary" id="lesson-checks">Show browser evidence</button></div>`);
+  const rows = candidate => { const r = outcome(candidate, appState.checkSuiteVersion); return [r.source, r.heldOut, statuses[candidate.status] || candidate.status, r.required, r.approval, r.publication, `${candidate.usage?.calls || 0} real model calls`]; };
+  openModal('What does this run show?', 'EXPLAIN & COMPARE', `<p class="lesson-lead">${escapeHTML(result.explanation)}</p>${result.stopReason ? `<p class="lesson-next"><strong>Recorded stopping reason:</strong> ${escapeHTML(result.stopReason)}</p>` : ''}${matches.length ? '<details><summary>Explain the selected run</summary>' : ''}<dl class="lesson-results"><div><dt>Does the source pass the checks?</dt><dd>${escapeHTML(result.source)}</dd></div><div><dt>Held-out checks (presenter only)</dt><dd>${escapeHTML(result.heldOut)}</dd></div><div><dt>What did completion require?</dt><dd>${escapeHTML(result.required)}</dd></div><div><dt>Was the patch applied?</dt><dd>${escapeHTML(result.publication)}</dd></div></dl>${matches.length ? '</details>' : ''}<p class="lesson-next"><strong>Next:</strong> ${escapeHTML(result.next)}</p><h3>Compare actual runs</h3>${matches.length ? `<label for="compare-run">Other harness · same task, scenario, model, harness version, session count and reset setting</label><select id="compare-run">${matches.map(r => `<option value="${escapeHTML(r.id)}">${preset(r)} · ${prettyId(r.id)} · ${escapeHTML(statuses[r.status] || r.status)}</option>`).join('')}</select><div id="lesson-comparison"></div><p>Each column is one independent run. This comparison does not establish which component caused the outcome.</p>` : '<p>No matching opposite-preset model run is available yet. Prepare and run the other preset with the same scenario and provider. Unrun workspaces and different models, harness versions, session counts or reset settings are excluded.</p>'}<h3>What each agent was told</h3><p>The first assembled instructions recorded for each run, plus its task. Exactly what the harness sent; nothing is added or removed here.</p><div id="inputs-comparison"></div><p class="lesson-takeaway"><strong>If both fix the bug:</strong> the contrast is still visible in what the harness required before completion and application.</p><div class="dialog-actions"><button class="button button-secondary" id="lesson-refresh">Refresh evidence</button><button class="button button-primary" id="lesson-checks">Show browser evidence</button></div>`);
   function compare() {
     const other = matches.find(r => r.id === $('#compare-run').value), pair = preset(run) === 'Minimal' ? [run, other] : [other, run];
-    const values = pair.map(rows), labels = ['Observed checks','Agent status','Completion requirement','Approval requirement','Application','Model requests'];
+    const values = pair.map(rows), labels = ['Observed checks','Held-out checks (presenter only)','Agent status','Completion requirement','Approval requirement','Application','Model requests'];
+    renderInputs(pair);
     $('#lesson-comparison').innerHTML = `<div class="lesson-table-wrap"><table class="lesson-table"><thead><tr><th>Evidence / control</th>${pair.map(r => `<th>${preset(r)} · ${prettyId(r.id)}</th>`).join('')}</tr></thead><tbody>${labels.map((label,i) => `<tr><th>${label}</th>${values.map(v => `<td>${escapeHTML(v[i])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
-  if (matches.length) { compare(); $('#compare-run').addEventListener('change', compare); }
+  if (matches.length) { compare(); $('#compare-run').addEventListener('change', compare); } else renderInputs([run]);
   $('#lesson-refresh').addEventListener('click', async () => { await refreshState(); showLesson(); });
   $('#lesson-checks').addEventListener('click', () => { closeModal(); $('.verification-card').scrollIntoView({ behavior:'instant', block:'center' }); });
 }
-function eventIcon(kind) { return {instructions:'file',context:'folder',prompt:'folder',tool:'terminal',tool_result:'terminal',edit:'edit',checks:'checkCircle',verification:'checkCircle',browser:'layout',memory:'layers',permission:'shield',gate:'shield',budget:'clock',model:'sparkles',assistant:'sparkles',run:'play',error:'error',status:'info'}[kind] || 'info'; }
+function renderInputs(runs) {
+  const target = $('#inputs-comparison'); if (!target) return;
+  target.innerHTML = `<div class="inputs-grid">${runs.filter(Boolean).map(item => {
+    const inputs = promptInputs(item);
+    const heading = `${escapeHTML(preset(item))} · ${escapeHTML(prettyId(item.id))}`;
+    if (!inputs) return `<div class="inputs-column" data-inputs-run="${escapeHTML(item.id)}"><h4>${heading}</h4><p class="inputs-count">No assembled instructions recorded for this run.</p></div>`;
+    return `<div class="inputs-column" data-inputs-run="${escapeHTML(item.id)}"><h4>${heading}</h4><p class="inputs-count"><span data-chars="instructions">${inputs.instructionsChars.toLocaleString('en-US')}</span> characters of instructions · <span data-chars="task">${inputs.taskChars.toLocaleString('en-US')}</span> characters of task · session ${escapeHTML(inputs.session)}</p><pre class="inputs-pre" tabindex="0">${escapeHTML(inputs.instructions)}\n\n--- Task ---\n${escapeHTML(inputs.task)}</pre></div>`;
+  }).join('')}</div>`;
+}
+function showClaims() {
+  const run = currentRun(); if (!run) return;
+  const claims = claimsEvidence(run, { suiteVersion: appState.checkSuiteVersion });
+  if (!claims.available) { openModal('What it claimed, what was observed','CLAIMS VS EVIDENCE','<p class="empty-dialog">This run has no request_completion tool event yet. The panel becomes available once the agent requests completion.</p>'); return; }
+  const yesNo = value => value ? '<span class="claims-yes">Yes</span>' : '<span class="claims-no">No</span>';
+  const harness = row => row.harness.map(item => `<div class="${!item.measured ? 'claims-unmeasured' : !item.current ? 'claims-stale' : item.passed ? 'claims-yes' : 'claims-no'}">${escapeHTML(item.text)}<small>${item.tier === 'heldOut' ? 'Held-out' : 'Visible'} · ${escapeHTML(item.name)}</small></div>`).join('');
+  const scope = claims.hasEdit ? `${claims.browserActionsAfterEdit} successful browser actions after the last write_file (${escapeHTML(time(claims.lastEditAt))})` : `no successful write_file; ${claims.browserActionsAfterEdit} successful browser actions in the whole run`;
+  openModal('What it claimed, what was observed','CLAIMS VS EVIDENCE',`<p class="dialog-description">Run ${escapeHTML(prettyId(run.id))} · ${escapeHTML(preset(run))} · ${claims.completionRequests} completion request${claims.completionRequests === 1 ? '' : 's'} · ${scope}.</p><div class="claims-layout"><div><span class="tiny-label">WHAT IT CLAIMED · LAST request_completion SUMMARY, VERBATIM</span><pre class="claims-summary" id="claims-summary">${escapeHTML(claims.summary || '(empty summary)')}</pre></div><div class="lesson-table-wrap"><table class="lesson-table claims-table" id="claims-table"><thead><tr><th>Behavior</th><th>Agent exercised in browser</th><th>Agent ran acceptance checks</th><th>Harness result</th></tr></thead><tbody>${claims.rows.map(row => `<tr data-claim="${row.id}"><th>${escapeHTML(row.behavior)}<small>Counted when: ${escapeHTML(row.rule)}</small></th><td>${yesNo(row.exercised)}</td><td>${escapeHTML(row.agentChecksText)}</td><td>${harness(row)}</td></tr>`).join('')}</tbody></table></div></div><p class="claims-footer" id="claims-footer">${escapeHTML(claims.footer)}</p>`);
+}
+function eventIcon(kind) { return {instructions:'file',context:'folder',prompt:'folder',tool:'terminal',tool_result:'terminal',edit:'edit',checks:'checkCircle',verification:'checkCircle',browser:'layout',memory:'layers',permission:'shield',gate:'shield',budget:'clock',reset:'refresh',model:'sparkles',assistant:'sparkles',run:'play',error:'error',status:'info'}[kind] || 'info'; }
 function renderEvents(events) {
   const list = $('#activity-list');
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
   const scrollTop = list.scrollTop;
   list.innerHTML = events.map((event,index) => {
     const displayKind=event.title==='Paused at a safe tool boundary'?'run':event.kind;
-    return `<button class="event-row" data-event="${index}" aria-label="Inspect evidence: ${escapeHTML(event.title || event.kind)}"><span class="event-icon ${escapeHTML(displayKind)}">${svg(eventIcon(displayKind))}</span><span class="event-body"><span class="event-meta"><strong>${escapeHTML(event.title || event.kind || 'Event')}</strong><time>${escapeHTML(time(event.at))}</time></span>${event.detail ? `<p>${escapeHTML(stringify(event.detail))}</p>` : ''}<span class="event-label">${escapeHTML(displayKind==='run'?'Agent loop':displayKind || 'event')} · inspect evidence</span></span></button>`;
+    return `<button class="event-row" data-event="${index}" aria-label="Inspect evidence: ${escapeHTML(event.title || event.kind)}"><span class="event-icon ${escapeHTML(displayKind)}">${svg(eventIcon(displayKind))}</span><span class="event-body"><span class="event-meta"><strong>${escapeHTML(event.title || event.kind || 'Event')}</strong><time>${escapeHTML(time(event.at))}</time></span>${event.detail ? `<p>${escapeHTML(stringify(event.detail))}</p>` : ''}<span class="event-label">${escapeHTML(displayKind==='run'?'Agent loop':displayKind==='reset'?'Agent loop · forced reset':displayKind || 'event')} · inspect evidence</span></span></button>`;
   }).join('');
   if (nearBottom) list.scrollTop = list.scrollHeight; else list.scrollTop = scrollTop;
 }
@@ -275,31 +336,46 @@ function renderMemory(run) {
   const memory = run.memory;
   $('#memory-content').innerHTML = `<span class="tiny-label">DURABLE HANDOFF</span><p style="margin-top:10px">${run.features?.memory ? 'A fresh conversation can load this recorded handoff. Inspect the next session’s Saved handoff included in request event to verify exactly what was supplied.' : 'Memory is disabled for this workspace. A new session will not receive a durable handoff through this feature.'}</p>${memory && (typeof memory !== 'object' || Object.keys(memory).length) ? `<div class="memory-block"><pre>${escapeHTML(stringify(memory))}</pre></div>` : '<div class="memory-block"><p>No model-written note has been saved. Observed checkpoints below are saved independently.</p></div>'}${run.sessionHandoff ? `<h3 class="memory-section-title">Handoff supplied to session ${run.session}</h3><pre class="evidence-readable">${escapeHTML(JSON.stringify(run.sessionHandoff,null,2))}</pre>` : ''}<h3 class="memory-section-title">Observed checkpoints · ${checkpoints.length}</h3>${checkpoints.length ? checkpoints.map((checkpoint,index) => `<div class="checkpoint"><strong>${escapeHTML(checkpoint.title || `Checkpoint ${index+1}`)}</strong><p>${escapeHTML(stringify(checkpoint))}</p></div>`).join('') : '<p>No checkpoints yet. This list will contain only recorded run data.</p>'}`;
 }
+function checkItems(names, results, current, staleReason, attribute) {
+  return names.map((name,index) => {
+    const result = results[index];
+    return `<button class="check-item ${result ? (!current ? 'stale' : result.passed ? 'pass' : 'fail') : ''}" ${attribute}="${index}" ${result ? '' : 'disabled'} title="${escapeHTML(result?.detail || name)}"><span>${svg(result ? (!current ? 'clock' : result.passed ? 'check' : 'close') : 'dot')}</span><span style="min-width:0"><strong>${escapeHTML(name)}</strong><small>${result ? `${!current ? `${escapeHTML(staleReason)} · ` : ''}${result.passed ? 'Passed' : 'Failed'}${Number.isFinite(result.durationMs) ? ` · ${result.durationMs} ms` : ''}` : 'Not run'}</small></span></button>`;
+  }).join('');
+}
+function tierState(result, run) {
+  if (!result) return { measured:false, current:false, allPass:false, staleReason:'' };
+  const currentSuite = (result.suiteVersion || 'notes-v1') === appState.checkSuiteVersion, currentRevision = String(result.revision) === String(run.revision);
+  return { measured:true, current:currentSuite && currentRevision, currentSuite, currentRevision, allPass:result.total > 0 && result.passed === result.total, staleReason:!currentSuite ? 'older test suite' : 'earlier revision' };
+}
 function renderChecks(run) {
-  const signature = JSON.stringify([run.id,run.checks,run.revision,run.pendingRevision,run.status,run.features?.verification,pendingAction,appState.checkNames,appState.checkSuiteVersion]);
+  const heldOut = latestHeldOut(run);
+  const signature = JSON.stringify([run.id,run.checks,heldOut,run.revision,run.pendingRevision,run.status,run.features?.verification,pendingAction,appState.checkNames,appState.heldOutCheckNames,appState.checkSuiteVersion]);
   if (signature === checksSignature) return;
   checksSignature = signature;
   const checks = run.checks;
   const results = checks?.results || [];
   const allNames = results.length ? results.map(result => result.name) : (appState.checkNames || []).map(item => typeof item === 'string' ? item : item.name);
   const suiteVersion = checks?.suiteVersion || 'notes-v1';
-  const currentSuite = checks && suiteVersion === appState.checkSuiteVersion;
-  const currentRevision = checks && String(checks.revision) === String(run.revision);
-  const current = currentSuite && currentRevision;
-  const staleReason = !currentSuite ? 'older test suite' : 'earlier revision';
-  const allPass = checks && checks.total > 0 && checks.passed === checks.total;
+  const visible = tierState(checks, run), held = tierState(heldOut, run);
+  const currentRevision = visible.currentRevision;
+  const allPass = visible.allPass;
   const summary = $('#checks-summary');
-  summary.className = `checks-summary ${checks ? (!current ? 'stale' : allPass ? 'pass' : 'fail') : ''}`;
-  summary.textContent = checks ? `${checks.passed}/${checks.total} passed${current ? '' : ` · ${staleReason}`}` : 'Not run yet';
-  $('#check-grid').innerHTML = allNames.length ? allNames.map((name,index) => {
-    const result = results[index];
-    return `<button class="check-item ${result ? (!current ? 'stale' : result.passed ? 'pass' : 'fail') : ''}" data-check="${index}" ${result ? '' : 'disabled'} title="${escapeHTML(result?.detail || name)}"><span>${svg(result ? (!current ? 'clock' : result.passed ? 'check' : 'close') : 'dot')}</span><span style="min-width:0"><strong>${escapeHTML(name)}</strong><small>${result ? `${!current ? `${escapeHTML(staleReason)} · ` : ''}${result.passed ? 'Passed' : 'Failed'}${Number.isFinite(result.durationMs) ? ` · ${result.durationMs} ms` : ''}` : 'Not run'}</small></span></button>`;
-  }).join('') : '<p class="empty-dialog">The browser suite will appear when the local server reports it.</p>';
-  text('#verification-note',checks ? `${checks.origin === 'presenter' ? 'Presenter evaluation · ' : 'Agent verification · '}${suiteVersion} · ${currentRevision ? 'Current' : 'Earlier'} revision · checked ${date(checks.at)}. ${!currentSuite ? `Rerun checks with ${appState.checkSuiteVersion} before treating this evidence as current. ` : ''}Select a check to inspect its evidence.` : run.features.verification ? 'The agent must pass these checks before completion. You can also evaluate independently.' : 'Not evaluated. These presenter checks are outside the agent workflow; completion does not require them.');
+  const measured = [visible, held].filter(tier => tier.measured);
+  summary.className = `checks-summary ${!measured.length ? '' : measured.some(tier => !tier.current) ? 'stale' : measured.every(tier => tier.allPass) ? 'pass' : 'fail'}`;
+  const visibleText = checks ? `${checks.passed}/${checks.total} visible${visible.current ? '' : ` (${visible.staleReason})`}` : 'visible not measured';
+  const heldText = heldOut ? `${heldOut.passed}/${heldOut.total} held-out${held.current ? '' : ` (${held.staleReason})`}` : 'held-out not measured';
+  summary.textContent = checks || heldOut ? `${visibleText} · ${heldText}` : 'Not run yet · visible and held-out not measured';
+  text('#visible-checks-summary', checks ? `${checks.passed}/${checks.total} passed · ${checks.origin === 'presenter' ? 'presenter evaluation' : 'agent run'}${visible.current ? '' : ` · ${visible.staleReason}`}` : 'not measured');
+  text('#heldout-checks-summary', heldOut ? `${heldOut.passed}/${heldOut.total} passed · presenter evaluation${held.current ? '' : ` · ${held.staleReason}`}` : 'not measured');
+  $('#check-grid').innerHTML = allNames.length ? checkItems(allNames, results, visible.current, visible.staleReason, 'data-check') : '<p class="empty-dialog">The browser suite will appear when the local server reports it.</p>';
+  const heldResults = heldOut?.results || [];
+  const heldNames = heldResults.length ? heldResults.map(result => result.name) : (appState.heldOutCheckNames || []);
+  $('#heldout-check-grid').innerHTML = heldNames.length ? checkItems(heldNames, heldResults, held.current, held.staleReason, 'data-heldout-check') : '<p class="empty-dialog">This server reports no held-out checks.</p>';
+  text('#verification-note',checks ? `${checks.origin === 'presenter' ? 'Presenter evaluation · ' : 'Agent verification · '}${suiteVersion} · ${currentRevision ? 'Current' : 'Earlier'} revision · checked ${date(checks.at)}. ${!visible.currentSuite ? `Rerun checks with ${appState.checkSuiteVersion} before treating this evidence as current. ` : ''}Select a check to inspect its evidence.` : run.features.verification ? 'The agent must pass the visible checks before completion. Evaluate outcome also runs the held-out checks.' : 'Not evaluated. These presenter checks are outside the agent workflow; completion does not require them.');
   $('#approve-button').hidden = run.status !== 'awaiting_approval';
-  const approvalBlocked = run.features?.verification && (!allPass || !current);
+  const approvalBlocked = run.features?.verification && (!allPass || !visible.current);
   $('#approve-button').disabled = !!approvalBlocked || pendingAction;
-  $('#approve-button').title = approvalBlocked ? `Passing ${appState.checkSuiteVersion} browser checks are required for the current revision.` : 'Apply the exact proposed revision to the isolated demo copy.';
+  $('#approve-button').title = approvalBlocked ? `Passing ${appState.checkSuiteVersion} visible browser checks are required for the current revision.` : 'Apply the exact proposed revision to the isolated demo copy.';
 }
 async function refreshEvals() {
   if (!appState || evalInFlight) return;
@@ -331,15 +407,34 @@ function renderEvals() {
     const provider = run?.provider || {};
     const currentSuite = group.suiteVersion === appState.checkSuiteVersion;
     const resultNote = currentSuite ? `${group.failed} failed or budget-limited · inspect a run` : `${group.recordedPasses || 0} / ${group.trials} passed historical checks · rerun required`;
-    return `<tr><td>${escapeHTML(configurationName(group.features))}<div class="configuration-list">${escapeHTML(enabled.length ? enabled.join(' · ') : 'All five optional features disabled')}</div></td><td>${escapeHTML(scenarios[group.scenario]?.name || group.scenario)}<div class="configuration-list">Harness v${escapeHTML(group.harnessVersion || 1)} · Check suite: ${escapeHTML(group.suiteVersion)}${currentSuite ? '' : ' · not current verification'}</div></td><td><button class="matrix-result ${group.verified === group.trials ? '' : 'fail'}" ${run ? `data-open-run="${escapeHTML(run.id)}"` : ''}><strong>${group.verified} / ${group.trials}</strong><small>${escapeHTML(resultNote)}</small></button></td><td><span class="provider-name">${escapeHTML(group.model || provider.model || 'Unreported')}</span><div class="configuration-list">${escapeHTML(provider.baseUrl || 'Provider unreported')}<br>${escapeHTML(provider.protocol || '')}</div></td></tr>`;
+    return `<tr><td>${escapeHTML(configurationName(group.features))}<div class="configuration-list">${escapeHTML(enabled.length ? enabled.join(' · ') : 'All five optional features disabled')}</div></td><td>${escapeHTML(scenarios[group.scenario]?.name || group.scenario)}<div class="configuration-list">Harness v${escapeHTML(group.harnessVersion || 1)} · Check suite: ${escapeHTML(group.suiteVersion)}${currentSuite ? '' : ' · not current verification'}${group.resetAfterCalls ? ` · Forced reset after call ${escapeHTML(group.resetAfterCalls)}` : ''}</div></td><td><button class="matrix-result ${group.verified === group.trials ? '' : 'fail'}" ${run ? `data-open-run="${escapeHTML(run.id)}"` : ''}><strong>${group.verified} / ${group.trials}</strong><small>${escapeHTML(resultNote)}</small></button></td><td><span class="provider-name">${escapeHTML(group.model || provider.model || 'Unreported')}</span><div class="configuration-list">${escapeHTML(provider.baseUrl || 'Provider unreported')}<br>${escapeHTML(provider.protocol || '')}</div></td></tr>`;
   }).join('') : '<tr><td colspan="4"><span class="unmeasured">— No agent outcomes measured yet. Run a coding agent to collect evidence. Preparing a workspace or checking the original bug does not count as an agent evaluation.</span></td></tr>';
   if (evaluationData?.note) text('#eval-note',evaluationData.note);
+  renderLadder(runs);
   text('#history-count',`${runs.length} workspace${runs.length === 1 ? '' : 's'}`);
   $('#run-history-list').innerHTML = runs.length ? runs.map(run => `<button class="history-row" data-open-run="${escapeHTML(run.id)}"><span class="event-icon">${svg(run.status === 'completed' ? 'checkCircle' : 'terminal')}</span><span class="history-main"><strong>${escapeHTML(configurationName(run.features))} <span style="font-weight:400;color:#a5b098">/ ${escapeHTML(prettyId(run.id))}</span></strong><p>${escapeHTML(scenarios[run.scenario || 'draft']?.name || run.scenario)} · ${escapeHTML(date(run.createdAt))}</p></span><span class="history-meta">${escapeHTML(statuses[run.status] || run.status)}<br>${run.usage?.calls ?? 0} model calls${Number.isFinite(run.elapsedMs) ? ` · ${duration(run.elapsedMs)}` : ''}${run.usage?.unreportedRequests ? '<br>Some token usage unreported' : ''}</span><span class="history-arrow">${svg('chevronRight')}</span></button>`).join('') : '<p class="history-empty">No workspaces yet. Prepare a workspace to reproduce the bug. Agent results appear only after a real model run.</p>';
 }
+function ladderFilterLabel(filter) {
+  return `${filter.model || 'Unreported model'} · ${scenarios[filter.scenario]?.name || filter.scenario || 'Unknown scenario'} · Harness v${filter.harnessVersion} · ${filter.resetAfterCalls ? `reset after call ${filter.resetAfterCalls}` : 'no forced reset'}`;
+}
+function renderLadder(runs) {
+  const filters = ladderFilters(evaluationData?.groups || [], runs);
+  if (!filters.some(filter => filter.key === ladderFilter)) ladderFilter = filters[0]?.key || '';
+  $('#ladder-filter').innerHTML = filters.length ? filters.map(filter => `<option value="${escapeHTML(filter.key)}"${filter.key === ladderFilter ? ' selected' : ''}>${escapeHTML(ladderFilterLabel(filter))}</option>`).join('') : '<option value="">No measured agent runs yet</option>';
+  $('#ladder-filter').disabled = !filters.length;
+  const rows = ladderTable(evaluationData, runs, ladderFilter, appState.checkSuiteVersion);
+  const cell = (value, extra = '') => value == null || value === '' ? '<td class="empty-cell"></td>' : `<td>${value}${extra}</td>`;
+  const fraction = value => value ? `${value.count}/${value.of}` : null;
+  const number = value => value == null ? null : Number.isInteger(value) ? String(value) : value.toFixed(1);
+  $('#ladder-body').innerHTML = rows.map(row => {
+    const names = row.features.length ? row.features.map(key => concepts[key]?.name || key).join(' · ') : 'Agent loop and tools only';
+    const visible = row.visible ? [row.visible.measured ? `${row.visible.passed}/${row.visible.measured}` : '', ...row.visible.historical.map(item => `<small>${item.passed}/${item.trials} on ${escapeHTML(item.suiteVersion)} (historical)</small>`)].join('') : null;
+    return `<tr data-rung="${escapeHTML(row.id)}"><td>${escapeHTML(row.label)}<div class="configuration-list">${escapeHTML(names)}</div></td><td>${row.trials}</td>${cell(row.completed == null ? null : `${row.completed}/${row.trials}`)}${cell(visible)}${cell(row.heldOut ? `${row.heldOut.passed}/${row.heldOut.measured}` : null)}${cell(fraction(row.appliedWithoutReview))}${cell(fraction(row.claimedWithoutRefreshTest))}${cell(number(row.avgCalls))}${cell(row.avgTokens == null ? null : Math.round(row.avgTokens).toLocaleString('en-US'), row.tokensIncomplete ? '<small>some usage unreported</small>' : '')}</tr>`;
+  }).join('');
+}
 function openModal(title,kicker,body) {
   modalVersion++;
-  $('#modal').classList.toggle('lesson-modal', title === 'What does this run show?');
+  $('#modal').classList.toggle('lesson-modal', ['What does this run show?','What it claimed, what was observed'].includes(title));
   modalOpener = document.activeElement;
   text('#modal-title',title); text('#modal-kicker',kicker);
   $('#modal-body').innerHTML = body;
@@ -385,7 +480,7 @@ function showSetup() {
 }
 function showNewWorkspace() {
   let mode = 'engineered';
-  openModal('Prepare an experiment.','A FRESH, ISOLATED WORKSPACE',`<p>Every workspace begins with the original bug. Choose what surrounds the model, then compare what actually happens. Existing runs remain in the evidence trail.</p><div class="preset-selector" aria-label="Harness preset"><button class="preset-option" type="button" data-preset="minimal" aria-pressed="false"><strong>Minimal</strong><small>The task and basic tools.<br>See what the model does with less.</small></button><button class="preset-option selected" type="button" data-preset="engineered" aria-pressed="true"><strong>Engineered</strong><small>Project support, memory and checks.<br>Require evidence and approval.</small></button></div><form id="workspace-form"><span class="tiny-label">CONFIGURE THE HARNESS</span><div class="feature-options">${Object.entries(concepts).map(([key,concept]) => `<label class="feature-option" for="feature-${key}"><span>${svg(concept.icon)}</span><span><strong>${escapeHTML(concept.name)}</strong><small>${escapeHTML(concept.short)}</small></span><input type="checkbox" id="feature-${key}" name="${key}" checked></label>`).join('')}</div><div class="form-field"><label for="scenario">Evaluation scenario</label><select id="scenario" name="scenario">${Object.entries(scenarios).map(([key,scenario]) => `<option value="${key}">${escapeHTML(scenario.name)}</option>`).join('')}</select><span class="field-help">These are input variants of the same task. Unicode and long-form change the text used in the independent checks.</span></div><div class="dialog-callout">${svg('info')}<span>Preparing a workspace makes no model calls. With the approval gate off, the agent applies changes automatically to its isolated copy. With Verification off, the agent has no acceptance-test tool and completion runs no tests. Evaluate outcome is a separate presenter action. Tool access remains confined to this workspace.</span></div><div id="workspace-feedback" role="status"></div><div class="dialog-actions"><button type="button" class="button button-secondary" data-close-modal>Cancel</button><button type="submit" class="button button-primary">Prepare workspace ${svg('arrowRight')}</button></div></form>`);
+  openModal('Prepare an experiment.','A FRESH, ISOLATED WORKSPACE',`<p>Every workspace begins with the original bug. Choose what surrounds the model, then compare what actually happens. Existing runs remain in the evidence trail.</p><div class="preset-selector" aria-label="Harness preset"><button class="preset-option" type="button" data-preset="minimal" aria-pressed="false"><strong>Minimal</strong><small>The task and basic tools.<br>See what the model does with less.</small></button><button class="preset-option selected" type="button" data-preset="engineered" aria-pressed="true"><strong>Engineered</strong><small>Project support, memory and checks.<br>Require evidence and approval.</small></button></div><form id="workspace-form"><span class="tiny-label">CONFIGURE THE HARNESS</span><div class="feature-options">${Object.entries(concepts).map(([key,concept]) => `<label class="feature-option" for="feature-${key}"><span>${svg(concept.icon)}</span><span><strong>${escapeHTML(concept.name)}</strong><small>${escapeHTML(concept.short)}</small></span><input type="checkbox" id="feature-${key}" name="${key}" checked></label>`).join('')}</div><div class="form-field"><label for="scenario">Evaluation scenario</label><select id="scenario" name="scenario">${Object.entries(scenarios).map(([key,scenario]) => `<option value="${key}">${escapeHTML(scenario.name)}</option>`).join('')}</select><span class="field-help">These are input variants of the same task. Unicode and long-form change the text used in the independent checks.</span></div><div class="form-field"><label for="reset-after">Forced session reset (optional)</label><input id="reset-after" name="resetAfterCalls" type="number" min="2" max="23" step="1" inputmode="numeric" placeholder="Off"><span class="field-help">After this model call number the harness clears the conversation once and starts a fresh session, simulating a context limit. Use the same number for every preset you compare. Leave empty for no forced reset.</span></div><div class="dialog-callout">${svg('info')}<span>Preparing a workspace makes no model calls. With the approval gate off, the agent applies changes automatically to its isolated copy. With Verification off, the agent has no acceptance-test tool and completion runs no tests. Evaluate outcome is a separate presenter action. Tool access remains confined to this workspace.</span></div><div id="workspace-feedback" role="status"></div><div class="dialog-actions"><button type="button" class="button button-secondary" data-close-modal>Cancel</button><button type="submit" class="button button-primary">Prepare workspace ${svg('arrowRight')}</button></div></form>`);
   $$('[data-preset]',$('#modal-body')).forEach(button => button.addEventListener('click',() => {
     mode = button.dataset.preset;
     $$('[data-preset]',$('#modal-body')).forEach(option => { option.classList.toggle('selected',option === button); option.setAttribute('aria-pressed',String(option === button)); });
@@ -396,8 +491,9 @@ function showNewWorkspace() {
     const form = event.currentTarget, version = modalVersion;
     const features = Object.fromEntries(Object.keys(concepts).map(key => [key,$(`#feature-${key}`).checked]));
     const scenario = $('#scenario').value;
+    const resetValue = $('#reset-after').value.trim(), resetAfterCalls = resetValue ? Number(resetValue) : null;
     $$('button',form).forEach(button => button.disabled = true);
-    try { await createWorkspace(mode,features,scenario); if (version === modalVersion) closeModal(); selectView('workbench'); }
+    try { await createWorkspace(mode,features,scenario,true,resetAfterCalls); if (version === modalVersion) closeModal(); selectView('workbench'); }
     catch(error) { if (version === modalVersion) $('#workspace-feedback').innerHTML = `<div class="form-feedback error">${escapeHTML(error.message)}</div>`; }
     finally { if (version === modalVersion) $$('button',form).forEach(button => button.disabled = false); }
   });
@@ -414,14 +510,14 @@ function screenshotURL(value) {
   const filename = typeof value === 'string' ? value.split(/[\\/]/).pop() : value.filename;
   return filename ? `/api/runs/${encodeURIComponent(run.id)}/screenshots/${encodeURIComponent(filename)}` : '';
 }
-function showCheck(index) {
-  const run = currentRun(), result = run?.checks?.results?.[index]; if (!result) return;
+function showCheck(index, tier = 'visible') {
+  const run = currentRun(), source = tier === 'heldOut' ? latestHeldOut(run) : run?.checks, result = source?.results?.[index]; if (!result) return;
   let screenshot = '';
   if (result.screenshot) {
     const filename = typeof result.screenshot === 'string' ? result.screenshot.split(/[\\/]/).pop() : result.screenshot.filename;
     if (filename) screenshot = `<a class="button button-secondary" style="margin-top:17px" href="/api/runs/${encodeURIComponent(run.id)}/screenshots/${encodeURIComponent(filename)}" target="_blank" rel="noopener">${svg('external')}Open recorded screenshot</a>`;
   }
-  openModal(result.name,'REAL BROWSER CHECK',`<div class="evidence-meta"><span>${result.passed ? 'PASSED' : 'FAILED'}</span><span>Suite ${escapeHTML(run.checks.suiteVersion || 'notes-v1')}</span><span>Revision ${escapeHTML(run.checks.revision)}</span><span>${escapeHTML(date(run.checks.at))}</span></div><p>${escapeHTML(result.detail || 'No additional detail reported.')}</p><pre class="evidence-pre">${escapeHTML(JSON.stringify(result,null,2))}</pre>${screenshot}`);
+  openModal(result.name,tier === 'heldOut' ? 'HELD-OUT BROWSER CHECK · PRESENTER ONLY' : 'REAL BROWSER CHECK',`<div class="evidence-meta"><span>${result.passed ? 'PASSED' : 'FAILED'}</span><span>Suite ${escapeHTML(source.suiteVersion || 'notes-v1')}</span><span>Revision ${escapeHTML(source.revision)}</span><span>${escapeHTML(date(source.at))}</span></div><p>${escapeHTML(result.detail || 'No additional detail reported.')}</p><pre class="evidence-pre">${escapeHTML(JSON.stringify(result,null,2))}</pre>${screenshot}`);
 }
 async function showDiff() {
   const run = currentRun(); if (!run) return;
@@ -437,7 +533,7 @@ function showRunDetails() {
   const run = currentRun(); if (!run) return;
   const unknown = run.usage?.unreportedRequests || 0;
   const tokenValue = value => unknown ? `${value ?? 0} reported + unknown usage` : value ?? 0;
-  const rows = [['Harness version',run.harnessVersion || 1],['Task',run.task],['Run ID',run.id],['Status',statuses[run.status] || run.status],['Created',date(run.createdAt)],['Model',run.provider?.model || appState.provider?.model || 'Not configured'],['Source revision',run.revision ?? 0],['Model session',run.session || 1],['Input tokens',tokenValue(run.usage?.input)],['Output tokens',tokenValue(run.usage?.output)]];
+  const rows = [['Harness version',run.harnessVersion || 1],['Task',run.task],['Run ID',run.id],['Status',statuses[run.status] || run.status],['Created',date(run.createdAt)],['Model',run.provider?.model || appState.provider?.model || 'Not configured'],['Source revision',run.revision ?? 0],['Model session',run.session || 1],['Forced session reset',run.resetAfterCalls ? `After model call ${run.resetAfterCalls}${run.forcedReset ? ` · recorded after call ${run.forcedReset.afterCall}` : ' · not recorded yet'}` : 'Off'],['Production copy',run.appliedRevision ? `Revision ${run.appliedRevision} applied ${run.appliedAt ? date(run.appliedAt) : 'at an unrecorded time'}` : 'Original build'],['Input tokens',tokenValue(run.usage?.input)],['Output tokens',tokenValue(run.usage?.output)]];
   openModal('A traceable experiment.','RUN DETAILS',`<dl class="run-details-grid">${rows.map(([key,value]) => `<div><dt>${escapeHTML(key)}</dt><dd>${escapeHTML(value)}</dd></div>`).join('')}</dl><p>Model calls count attempted requests. Token counts include only usage reported by the provider.${unknown ? ` Usage was not reported for ${unknown} request${unknown === 1 ? '' : 's'}; total tokens and cost are unknown.` : ''} Every activity item contains recorded input or results. Export the evidence to inspect it outside the workbench.</p>${run.summary ? `<div class="memory-block"><pre>${escapeHTML(stringify(run.summary))}</pre></div>` : ''}<div class="dialog-actions"><button class="button button-secondary" id="dialog-export">${svg('download')}Export evidence</button><button class="button button-primary" data-close-modal>Done</button></div>`);
   $('#dialog-export').addEventListener('click',exportEvidence);
 }
@@ -513,6 +609,7 @@ function bindEvents() {
     const component = event.target.closest('[data-anatomy]'); if (component) showAnatomy(component.dataset.anatomy);
     const evidence = event.target.closest('[data-event]'); if (evidence) showEvidence(currentRun()?.events?.[Number(evidence.dataset.event)]);
     const check = event.target.closest('[data-check]'); if (check && !check.disabled) showCheck(Number(check.dataset.check));
+    const heldCheck = event.target.closest('[data-heldout-check]'); if (heldCheck && !heldCheck.disabled) showCheck(Number(heldCheck.dataset.heldoutCheck),'heldOut');
     const run = event.target.closest('[data-open-run]'); if (run) { chooseRun(run.dataset.openRun); selectView('workbench'); }
   });
   $$('.tab[data-panel]').forEach(tab => tab.addEventListener('click',() => {
@@ -521,6 +618,11 @@ function bindEvents() {
     $('#activity-content').hidden = activePanel !== 'activity'; $('#memory-content').hidden = activePanel !== 'memory';
   }));
   $('#notes-frame').addEventListener('load',() => { if ($('#notes-frame').src !== 'about:blank') $('#preview-placeholder').hidden = true; });
+  $('#production-frame').addEventListener('load',() => { if ($('#production-frame').src !== 'about:blank') $('#production-placeholder').hidden = true; });
+  $('#refresh-production').addEventListener('click',() => { const run = currentRun(); if (!run || $('#production-frame').src === 'about:blank') return; $('#production-placeholder').hidden = false; const url = new URL($('#production-frame').src); url.searchParams.set('refresh',String(Date.now())); $('#production-frame').src = url.href; toast('Production phone refreshed.'); });
+  $('#claims-button').addEventListener('click',showClaims);
+  $('#ladder-filter').addEventListener('change',event => { ladderFilter = event.target.value; renderLadder([...(appState?.runs || [])].sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt))); });
+  if ('ResizeObserver' in window) { let frame = 0; new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(fitPhones); }).observe($('#phone-stage')); }
   $('#refresh-preview').addEventListener('click',() => { const run = currentRun(); if (!run) return; $('#preview-placeholder').hidden = false; const url = new URL($('#notes-frame').src); url.searchParams.set('refresh',String(Date.now())); $('#notes-frame').src = url.href; toast('Preview refreshed.'); });
   $('#run-button').addEventListener('click',async () => {
     const run = currentRun(); if (!run) return;

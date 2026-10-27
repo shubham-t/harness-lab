@@ -277,3 +277,57 @@ test('transport unit: abort propagates and missing usage is explicitly unreporte
   assert.equal(result.usageReported, false);
   assert.deepEqual(result.usage, { input: 0, output: 0 });
 });
+
+// Rate-limit retries and request pacing are transport behavior shared by every preset.
+const limited = message => new Response(JSON.stringify({ error: { message } }), { status: 429, headers: { 'retry-after': '0.01' } });
+async function pacedProvider(env) {
+  const previous = { ...process.env };
+  Object.assign(process.env, env);
+  try { return await provider(); } finally { for (const key of Object.keys(env)) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; } }
+}
+test('transport unit: HTTP 429 retries the same request and reports each retry', async t => {
+  const client = await pacedProvider({ MODEL_RETRY_429: '2', MODEL_MIN_INTERVAL_MS: '0' });
+  const bodies = [];
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url, options) => { bodies.push(options.body); return ++calls < 3 ? limited('Unit rate limit') : response({ status: 'completed', output }); });
+  const retries = [];
+  const result = await client.callModel({ history, onRetry: info => { retries.push(info); } });
+  assert.equal(calls, 3);
+  assert.equal(result.text, 'Unit fixture.');
+  assert.deepEqual(retries.map(r => [r.attempt, r.maxAttempts, r.status, r.message]), [[1, 2, 429, 'Unit rate limit'], [2, 2, 429, 'Unit rate limit']]);
+  assert.ok(retries.every(r => r.waitMs === 10));
+  assert.ok(bodies.every(body => body === bodies[0]), 'The retried request must be identical.');
+});
+test('transport unit: HTTP 429 beyond the retry budget fails with the provider message', async t => {
+  const client = await pacedProvider({ MODEL_RETRY_429: '1', MODEL_MIN_INTERVAL_MS: '0' });
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return limited('Still limited'); });
+  await assert.rejects(client.callModel({ history }), /Model API HTTP 429: Still limited/);
+  assert.equal(calls, 2);
+});
+test('transport unit: a connection test never retries HTTP 429', async t => {
+  const client = await pacedProvider({ MODEL_RETRY_429: '3', MODEL_MIN_INTERVAL_MS: '0' });
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return limited('No retry for tests'); });
+  await assert.rejects(client.testConnection(), /HTTP 429/);
+  assert.equal(calls, 1);
+});
+test('transport unit: a pause during a retry wait aborts without a second request', async t => {
+  const client = await pacedProvider({ MODEL_RETRY_429: '3', MODEL_MIN_INTERVAL_MS: '0' });
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return new Response(JSON.stringify({ error: { message: 'Slow limit' } }), { status: 429, headers: { 'retry-after': '30' } }); });
+  const controller = new AbortController();
+  const pending = client.callModel({ history, signal: controller.signal, onRetry: () => controller.abort() });
+  await assert.rejects(pending, { name: 'AbortError' });
+  assert.equal(calls, 1);
+});
+test('transport unit: request pacing spaces consecutive requests equally', async t => {
+  const client = await pacedProvider({ MODEL_RETRY_429: '0', MODEL_MIN_INTERVAL_MS: '150' });
+  const startedAt = [];
+  t.mock.method(globalThis, 'fetch', async () => { startedAt.push(Date.now()); return response({ status: 'completed', output }); });
+  await client.callModel({ history });
+  await client.callModel({ history });
+  await client.callModel({ history });
+  assert.equal(startedAt.length, 3);
+  assert.ok(startedAt[1] - startedAt[0] >= 140 && startedAt[2] - startedAt[1] >= 140, `Requests started ${startedAt[1] - startedAt[0]} ms and ${startedAt[2] - startedAt[1]} ms apart; expected at least 150 ms.`);
+});

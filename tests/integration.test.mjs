@@ -93,10 +93,27 @@ test('real local application, browser checks, and harness boundaries', { timeout
     assert.equal(checked.body.checks.total, 6);
     assert.deepEqual(checked.body.checks.results.map(result => result.passed), [false, false, true, true, true, true]);
     assert.equal(checked.body.usage.calls, 0);
+    // Presenter evaluation runs both tiers: visible on run.checks, held-out attached separately.
+    assert.equal(checked.body.checks.tier, 'visible');
+    assert.equal(checked.body.checks.origin, 'presenter');
+    const heldOut = checked.body.checks.heldOut;
+    assert.equal(heldOut.tier, 'heldOut');
+    assert.equal(heldOut.origin, 'presenter');
+    assert.equal(heldOut.suiteVersion, 'notes-v3');
+    assert.equal(heldOut.revision, checked.body.checks.revision);
+    assert.equal(heldOut.total, 5);
+    // The unfixed app: backup, upgrade and test ids hold; the lost draft fails the literal and count checks.
+    assert.deepEqual(heldOut.results.map(result => result.passed), [true, true, false, true, false]);
+    const presenterEvent = checked.body.events.findLast(item => item.kind === 'checks' && item.phase === 'end');
+    assert.match(presenterEvent.detail, /Checks the agent can run \(visible tier\): 4\/6 passed/);
+    assert.match(presenterEvent.detail, /Held-out checks \(presenter only, never shown to the agent\): 3\/5 passed/);
+    assert.deepEqual((await api('/api/state')).body.heldOutCheckNames, heldOut.results.map(result => result.name));
   });
   await t.test('completion gate rejects buggy source even if completion is requested', async () => {
     const result = await executeTool(run, 'request_completion', { summary: 'Test the gate against the actual unfixed app.' });
     assert.equal(result.accepted, false);
+    assert.equal('heldOut' in result.checks, false, 'The completion assessment returns the visible tier only');
+    assert.equal(result.checks.tier, 'visible');
     assert.equal(run.pendingRevision, null);
   });
   await t.test('real file edits affect actual browser behavior and await approval', async () => {
@@ -106,8 +123,13 @@ test('real local application, browser checks, and harness boundaries', { timeout
       .replace('// Draft storage is not implemented yet.', "localStorage.setItem(prefix + 'draft', JSON.stringify(draft));")
       .replace('// Clear the draft once a note has been saved.', "localStorage.removeItem(prefix + 'draft');");
     await executeTool(run, 'write_file', { path: 'src/storage.js', content: fixed });
+    const agentChecks = await executeTool(run, 'run_checks', {});
+    assert.equal(agentChecks.passed, 6);
+    assert.equal('heldOut' in agentChecks, false, 'run_checks never returns held-out results');
+    assert.equal(JSON.stringify(agentChecks).includes('Backup lists saved notes'), false);
     const result = await executeTool(run, 'request_completion', { summary: 'Integration test repair, checked in an actual browser.' });
     assert.equal(result.accepted, true);
+    assert.equal('heldOut' in result.checks, false);
     assert.equal(run.checks.passed, 6);
     assert.equal(run.status, 'awaiting_approval');
     const approvedRevision = run.pendingRevision;
@@ -119,8 +141,11 @@ test('real local application, browser checks, and harness boundaries', { timeout
     delete run.checks.suiteVersion;
     await assert.rejects(approveRun(run), /Rerun browser checks/);
     run.checks.suiteVersion = suiteVersion;
+    // The approval gate ignores held-out results, even failing ones.
+    run.checks.heldOut = { suiteVersion, tier: 'heldOut', revision: approvedRevision, passed: 0, total: 5, results: [] };
     await approveRun(run);
     assert.equal(run.status, 'completed');
+    assert.ok(Number.isFinite(Date.parse(run.appliedAt)));
     const published = await fetch(`http://127.0.0.1:4329/published/${run.id}/src/storage.js`);
     assert.equal(await published.text(), fixed);
   });

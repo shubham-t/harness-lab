@@ -1,47 +1,70 @@
 # Architecture
 
-Harness Lab runs on one laptop. The browser dashboard controls a Node server. That server calls the configured model, executes allowlisted tools, and records measured results. A separate loopback origin serves the model's working copy of Pocket Notes.
+Harness Lab runs on one laptop. The browser dashboard controls a Node server. That server calls the configured model, executes allowlisted tools, and records measured results. A separate loopback origin serves the model's working copy of Pocket Notes, its published copy and the production view. The v4 design contract is [REDESIGN-V4.md](REDESIGN-V4.md).
 
 ## Modules
 
 | Module | Responsibility |
 | --- | --- |
-| `server.mjs` | Dashboard/API on 4318, preview on 4319, origin checks, explicit run actions and evaluation groups |
-| `lib/store.mjs` | Fixture copying, allowed paths, atomic persistence, revisions, public run snapshots and source diffs |
-| `lib/provider.mjs` | Responses and Chat Completions adapters, tool continuation, aborts, timeouts, token accounting and memory-only credentials |
-| `lib/runner.mjs` | Context assembly, actual model/tool loop, feature-dependent tools, checkpoints, budgets, completion and approval |
-| `lib/browser.mjs` | Playwright operations and six protected acceptance checks |
+| `server.mjs` | Dashboard/API on 4318; preview, published and production routes on 4319; origin checks, explicit run actions and evaluation groups |
+| `lib/store.mjs` | Fixture copying, allowed paths, atomic persistence, revisions, public run snapshots, source diffs and `resetAfterCalls` validation |
+| `lib/provider.mjs` | Responses and Chat Completions adapters, tool continuation, aborts, timeouts, token accounting, memory-only credentials, optional request pacing (`MODEL_MIN_INTERVAL_MS`) and bounded HTTP 429 retries (`MODEL_RETRY_429`, default 3) that apply equally to every preset and are recorded as events |
+| `lib/runner.mjs` | Context assembly (including the ticket thread), actual model/tool loop, feature-dependent tools, checkpoints, budgets, forced reset, completion and approval |
+| `lib/browser.mjs` | Playwright operations and the two protected check tiers: six visible and five held-out checks |
 | `public/anatomy.mjs` | Maps recorded events and feature flags to component states; no timed playback or invented stages |
-| `public/lesson.mjs` | Evidence-based audience explanations and compatible-run comparison |
-| `public/app.js` | Polls state, renders cards/evidence, controls run/pause/resume/approval and model setup |
+| `public/lesson.mjs` | Evidence-based audience explanations, compatible-run comparison and the claims versus evidence derivation |
+| `public/app.js` | Polls state, renders cards, both phones, evidence and the ladder scoreboard, controls run/pause/resume/approval and model setup |
+| `scripts/evaluate.mjs` | Repeated live trials and the ladder against a running server; summaries derived from recorded events |
 
 ## Request lifecycle
 
-1. A fresh run copies the deliberately buggy fixture into an isolated directory.
-2. The runner assembles basic task instructions and enabled project inputs. Instructions & policies receives conventions and completion rules from PROJECT.md. Context management receives its repository map, file metadata and revision. Each input gets a separate event with the exact payload for that request.
+1. A fresh run copies the deliberately buggy fixture `fixtures/notes` into an isolated directory. In harness v4 the file set is `index.html`, `src/app.js`, `src/export.js`, `src/storage.js` and `src/styles.css`, plus a readable PROJECT.md.
+2. The runner assembles basic task instructions and enabled project inputs. Instructions & policies receives conventions and completion rules from PROJECT.md. Context management receives its repository map, file metadata and revision, and in v4 the PN-142 ticket thread. Each input gets a separate event with the exact payload for that request.
 3. The provider receives instructions, the current session history and permitted tool schemas. The model requests an action or responds with text.
 4. The runner validates and executes requested tools serially, appends observations to API history, and records visible evidence.
-5. Completion either publishes directly to the isolated demo copy or runs verification and waits for approval, depending on configuration. Revision hashes prevent approval of changed source.
+5. If a forced reset is configured and its call count is reached, the runner ends session 1 and starts session 2 (see below).
+6. Completion either publishes directly or runs visible verification and waits for approval, depending on configuration. Revision hashes prevent approval of changed source.
 
 ## Tool access
 
-Both presets have list_files, read_file, write_file, browser_action and request_completion. Version 2 exposes run_checks only when verification is enabled, and save_memory only when memory is enabled. The runner rejects an unavailable tool even if a model requests it anyway. No shell or arbitrary host/network tool exists.
+Every preset has the same tool schemas: list_files, read_file, write_file, browser_action and request_completion. run_checks is present only when Verification is on, and save_memory only when Memory is on. The runner rejects an unavailable tool even if a model requests it anyway. `browser_action` can reload, inspect, fill the title and body, and click the editor, notes, backup and save controls. No shell or arbitrary host/network tool exists.
 
 Minimal can inspect PROJECT.md manually and can exercise the browser. Turning off automatic project inputs does not erase knowledge discoverable through tools. Turning off verification removes the protected acceptance tool and completion gate, not all possible manual testing.
 
-## Memory and state
+## Ticket thread
 
-Working files survive in both presets. Engineered additionally records observed checkpoints and optionally model-written handoff text. A fresh session clears API conversation history. Harness v3 freezes a compact handoff at session start: latest edited files/revisions, a concise check summary, a bounded model-written note and recent action names. It does not re-insert full browser payloads or current-session checkpoints as prior-session memory. The full checkpoints remain in the audit trail. Older runs retain their earlier prompt policy. Saved memory does not guarantee task completion: live rehearsals include budget exhaustion and a provider 502.
+`fixtures/ticket/PN-142.md` is harness-owned knowledge outside the workspace. It is never copied into a run, never listed, and `read_file` rejects any path to it. When Context management is on and the run's harness version is 4 or later, the runner appends it to the context section under "Related ticket thread PN-142, supplied by the harness:", bounded to 6000 characters. The `context` event records it as part of the exact payload. Minimal receives nothing new. The task text is unchanged.
 
-## Verification and evaluation
+## Check tiers
 
-The six checks measure draft navigation, refresh, complete saving, clearing the saved draft, original-note preservation and distinct notes. Tests belong to the harness, outside the model-editable fixture. `notes-v2` compares original notes with fixed expected content rather than whatever content the patch happens to provide.
+Suite `notes-v3` has two tiers that share one tested revision.
 
-Presenter evaluation can run after a model stops. It does not retroactively enforce Minimal completion and does not undo publication. Verification-disabled model context excludes these results. Evaluation groups separate model, endpoint, protocol, feature configuration, scenario, harness version and test-suite version. A passing patch, a completed run and an approved publication are different outcomes.
+- **Visible (6):** draft navigation, refresh, complete saving, clearing the saved draft, original-note preservation and distinct notes. `run_checks` and the final assessment in `request_completion` run only this tier. The completion and approval gates read only visible results.
+- **Held-out (5):** backup lists saved notes and never a draft; an existing user's notes survive the upgrade; a restored draft stays literal; automation test ids are intact; the character count matches the restored draft. These use fixed harness data, not fixture data.
+
+Only presenter evaluation (`POST /api/runs/:id/checks`) runs the held-out tier. It stores `run.checks` as the visible result with `run.checks.heldOut` attached. Agent tool results, prompts, compact checks and handoffs never contain held-out results. Tests belong to the harness, outside the model-editable fixture.
+
+Presenter evaluation can run after a model stops. It does not retroactively enforce completion and does not undo publication. Verification-disabled model context excludes its results. A later agent `run_checks` replaces `run.checks` with a visible-only result; the earlier held-out result stays in its `checks` event.
+
+## Production route
+
+The preview origin serves `/production/<runId>/<file>`. When the run has an `appliedRevision` and the published file exists, it serves the published copy; otherwise it serves the pristine fixture, never the sandbox workspace. It uses the same host check and content policy as `/preview` and `/published`. Its page path differs, so its browser storage is separate from the sandbox phone's. `publish()` records `run.appliedAt`. Nothing reaches production except through `publish()`.
+
+## Memory, state and the forced reset
+
+Working files survive in all presets. With Memory on, the runner records observed checkpoints and optionally model-written handoff text. A fresh session clears API conversation history. From v3, a compact handoff is frozen at session start: latest edited files and revisions, a concise check summary, a bounded model-written note and recent action names. Full checkpoints remain in the audit trail. Saved memory does not guarantee task completion.
+
+A run may be created with `resetAfterCalls`, an integer from 2 to 23. After that model call and its tool executions, while still in session 1 and running, the runner records a `reset` event titled "Context limit reached: fresh session required" and sets `run.forcedReset`. It then starts session 2 through the same path that Resume uses. The handoff is supplied only when Memory is on. There is at most one forced reset per run, and the status stays `running` during the transition. A pause during the transition settles as paused. `resetAfterCalls` is part of the evaluation grouping key.
+
+## Evaluation
+
+Evaluation groups separate model, endpoint, protocol, feature configuration, scenario, harness version, test-suite version and forced-reset setting. `verified` counts runs whose visible tier passed on the current revision. `heldOutVerified` counts runs whose held-out tier passed in full on the current revision. A passing patch, a completed run and an approved publication are different outcomes.
+
+`scripts/evaluate.mjs` creates runs through the same API, waits for each to stop, then runs presenter evaluation. Its `--ladder` mode runs five rungs per trial and its `--out` summary derives "applied without review" and "claimed without a refresh test" from recorded events only.
 
 ## Publication and evidence storage
 
-Publication stages all allowlisted files and a harness-owned revision manifest in a new sibling directory, then renames the complete directory into place. Failed staging leaves no partial published app. Atomic JSON snapshots retry bounded transient rename failures without deleting the previous snapshot. If publication succeeds but later event persistence fails, the UI reports a storage warning while retaining the applied status. On restart the manifest is checked against published-file hashes to recover that fact. This covers process interruption, not a claim of power-loss durability.
+Publication stages all allowlisted files and a harness-owned revision manifest in a new sibling directory, then renames the complete directory into place. Failed staging leaves no partial published app. Atomic JSON snapshots retry bounded transient rename failures without deleting the previous snapshot. If publication succeeds but later event persistence fails, the UI reports a storage warning while retaining the applied status. On restart the manifest is checked against published-file hashes to recover that fact and `appliedAt`. This covers process interruption, not a claim of power-loss durability.
 
 ## Data and boundaries
 
@@ -51,4 +74,4 @@ The server binds to loopback, enforces local control headers and separates previ
 
 ## Versioning
 
-Version 1 runs retain historical behavior. Version 2 introduced the reduced Minimal tool/completion policy. The later card redesign preserves this policy while separating project input evidence and replacing Observability with Instructions & policies. Historical traces lacking specific input events are not retroactively relabeled as having them.
+Version 1 runs retain historical behavior. Version 2 introduced the reduced Minimal tool/completion policy. Version 3 added atomic publication and frozen compact handoffs. Version 4 adds `src/export.js` and the Backup screen, the ticket thread, the two check tiers, the production route and the forced reset. Workspaces created before v4 have no `src/export.js`; revision hashing, diffs, listings and publication skip it, so their recorded revisions stay valid. Historical traces are not retroactively relabeled.

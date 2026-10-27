@@ -1,40 +1,55 @@
 # Testing and evidence
 
-Read [Project status](PROJECT-STATUS.md) for the latest evidence snapshot and remaining environment-specific checks.
+Read [Project status](PROJECT-STATUS.md) for the latest evidence snapshot, the current suite count and remaining environment-specific checks.
 
-Run `npm run doctor`, then `npm test`. On Windows PowerShell use `npm.cmd` if execution policy prevents npm.ps1. Run only one test command at a time, with live rehearsals idle. The npm command runs test files sequentially so their separate Chromium processes do not compete with each other on presentation laptops. Acceptance assertions and timeout limits remain unchanged.
+Run `npm run doctor`, then `npm test`. On Windows PowerShell use `npm.cmd` if execution policy prevents npm.ps1. Run only one test command at a time, with live rehearsals idle. The npm command runs test files sequentially so their separate Chromium processes do not compete with each other on presentation laptops. For a focused run use `node --test tests/<file>`. Acceptance assertions and timeout limits remain unchanged.
 
-The current full suite has 80 passing tests; doctor has 16 passing checks. It covers pure anatomy mapping, provider parsing, tool access, actual HTTP adapters, real filesystem/browser behavior, revision-bound approval, exports, fresh sessions, abrupt restart, eval grouping, evaluation-lock timing and responsive dashboard controls.
+The suite covers pure anatomy mapping, provider parsing, tool access, actual HTTP adapters, real filesystem/browser behavior, both check tiers, revision-bound approval, exports, fresh sessions, the forced reset, abrupt restart, eval grouping, evaluation-lock timing, the evaluation script and responsive dashboard controls. Doctor also checks that the ticket file exists.
 
-Tests use isolated temporary data directories and explicit test-only HTTP providers. They never populate the demo history. The test repair exists only inside test code. A passing test suite proves implementation behavior under those inputs; it does not prove a live model will fix the bug.
+Tests use isolated temporary data directories and explicit test-only HTTP providers. They never populate the demo history. Test repairs exist only inside test code. A passing test suite proves implementation behavior under those inputs; it does not prove a live model will fix the bug.
+
+## Harness v4 tests
+
+These are deterministic implementation tests. None of them is a real-provider rehearsal.
+
+- `tests/v4-runner.test.mjs` (in process, mocked transport): new runs use harness version 4 and include `src/export.js`; `resetAfterCalls` validation; the ticket appears in context only with Context management on and version 4; the ticket is never copied, listed or readable; held-out results never reach prompts, compact checks or handoffs; the Backup tab target has the same schema for every preset; the forced reset happens at the same call for both presets, with a handoff only when Memory is on; a pause during the reset; a refused automatic session start; workspaces created before v4 keep their revisions.
+- `tests/v4-system.test.mjs` (server on ports 4418/4419, scripted loopback provider on 4420, real Chromium): the unfixed Backup screen lists the two seed notes; production serves the pristine fixture before publication and the published copy after; the forced reset over HTTP for both presets; `appliedAt`; `heldOutVerified` and `resetAfterCalls` in `/api/evals`.
+- **Held-out checks measure something.** `tests/support/reference-patches.mjs` holds two test-only patches that never touch `fixtures/` or `lib/`. A correct patch passes 6/6 visible and 5/5 held-out. A wrong patch that stores the draft inside the notes array passes all six visible checks and fails only the backup held-out check.
+- `tests/integration.test.mjs`: presenter evaluation returns both tiers with the expected shape and detail; `run_checks` and completion results contain no held-out result; approval ignores a failing held-out result; on the unfixed fixture the visible tier is 4/6 and the held-out tier is 3/5.
+- `tests/evaluate-ladder.test.mjs` (no network; fake API and one local `--help` process): ladder rung generation and alternating order, custom `--rungs`, `--reset-after` bounds, argument validation, the "claimed without a refresh test" and "applied without review" derivations, the per-run summary, refusal without a configured provider, and a partial summary written when a trial fails.
+- `tests/evaluate.test.mjs`: the bounded retry for a run that has not yet released its operation lock.
+- Dashboard tests (package B) cover the production banners, held-out rendering, the claims versus evidence panel, what each agent was told and the ladder scoreboard. See the test files under `tests/` for their exact scope.
 
 ## Live tests
 
-With the server and real connection configured:
+With the server running and a real connection configured, every command below makes **real, billable model calls**. The script refuses to start without a configured provider. It never approves a proposal.
 
 ```powershell
 node scripts/evaluate.mjs --trials 1 --scenarios draft,unicode,longform
+node scripts/evaluate.mjs --ladder --trials 3 --reset-after 8 --out ladder-results.json
 ```
 
-This makes six real model trials and consumes provider quota. It evaluates each final source after the agent stops. It never approves proposals. Review passing Engineered diffs before approving through the UI, then test the published copy.
+The first makes six trials (Minimal and Engineered per scenario). The second runs five rungs per trial for three trials: fifteen runs, each forced into a fresh session after model call 8, with a JSON summary per run. `--rungs` takes a custom list, for example `"minimal;verification+memory;engineered"`. `--help` lists all options without contacting the server. After each agent stops, the script runs presenter evaluation of both tiers. Review passing Engineered diffs before approving through the UI, then test the production phone.
 
-For memory, pause after a real edit, inspect Memory, and choose New session. Check the next assembled prompt and recorded restored checkpoint. Files survive both presets. Confirm that Minimal has no saved handoff. A fast model can finish before the pause; report that honestly.
+For memory without the script, pause after a real edit, inspect Memory, and choose New session. Or prepare runs with the same **Forced session reset** call number (`resetAfterCalls`). Check the next assembled prompt and the restored handoff. Files survive in every preset. Confirm that a run with Memory off has no handoff. A fast model can finish before the reset point; report that honestly.
 
 ## Recorded evidence
 
-- [Current v3 live results and fixes](../live-validation/v3/RESULTS.md)
-- [Earlier v2 card redesign and live results](../live-validation/revised-cards/RESULTS.md)
-- [Earlier harness trials](../live-validation/RESULTS.md)
-- [Validation details](../VALIDATION.md)
+The first live v4 ladder is recorded in [the v4 live report](../live-validation/v4/RESULTS.md). Everything below is historical. It used an earlier fixture without the Backup screen and a single check tier. Do not pool it with v4 results.
 
-The six v2 scenario trials are individual samples, not an experiment large enough to claim a reliability percentage. The draft Minimal trial changed existing note text and exhausted its budget. Two other Minimal trials succeeded. All three Engineered trials passed and waited for approval. Both v2 interrupted memory trials retained a passing patch but failed to complete within the budget; Engineered also saw an HTTP 502 before recovery. The newer v3 report separately records a successful pair, provider failures and two fallback memory budget stops.
+- [v3 live results and fixes (historical)](../live-validation/v3/RESULTS.md)
+- [v2 card redesign and live results (historical)](../live-validation/revised-cards/RESULTS.md)
+- [Earlier harness trials (historical)](../live-validation/RESULTS.md)
+- [Validation details (historical)](../VALIDATION.md)
+
+The six v2 scenario trials are individual samples, not an experiment large enough to claim a reliability percentage. The draft Minimal trial changed existing note text and exhausted its budget. Two other Minimal trials succeeded. All three Engineered trials passed and waited for approval. Both v2 interrupted memory trials retained a passing patch but failed to complete within the budget; Engineered also saw an HTTP 502 before recovery. The v3 report separately records a successful pair, provider failures and two fallback memory budget stops. The v3 suite had 80 passing tests at the time.
 
 No live model happened to attempt an unauthorized host write in these trials. The separate permission probe and deterministic tests establish rejection of that action. Do not describe the probe as model misconduct. Similarly, successful Engineered trials establish verification and approval operation, not a live failed-check repair loop unless such an event actually appears in the trace.
 
-## Harness v3 verification
+## Harness v3 verification (historical)
 
-See [the v3 report](../live-validation/v3/RESULTS.md). New tests inject transient and permanent disk errors, failed file staging, post-publication logging failures, restart recovery and HTTP approval response behavior. Handoff tests check size, frozen state, edit retention and verification-disabled exclusions. Audience tests distinguish current checks from completion/publication and reject mismatched comparisons. These are deterministic implementation tests, not real-provider rehearsals.
+See [the v3 report](../live-validation/v3/RESULTS.md). Those tests inject transient and permanent disk errors, failed file staging, post-publication logging failures, restart recovery and HTTP approval response behavior. Handoff tests check size, frozen state, edit retention and verification-disabled exclusions. Audience tests distinguish current checks from completion/publication and reject mismatched comparisons. They remain in the suite.
 
 ## Maintenance
 
-Preserve failure evidence. When changing checks, increment CHECK_SUITE_VERSION if meaning changes. Keep historical results separate from current verification. When changing available tools or completion policy, consider harness versioning so old results remain interpretable. Never patch fixture code to make model tests pass.
+Preserve failure evidence. When changing checks, increment CHECK_SUITE_VERSION if meaning changes. Keep held-out checks out of every agent-facing path, and keep a test that proves they catch a wrong patch. Keep historical results separate from current verification. When changing available tools or completion policy, consider harness versioning so old results remain interpretable. Never patch fixture code to make model tests pass.

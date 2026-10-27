@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ROOT, FILES, FIXTURE } from '../lib/store.mjs';
+import { ROOT, FILES, FIXTURE, TICKET } from '../lib/store.mjs';
 import { getBrowser, closeBrowser } from '../lib/browser.mjs';
 
 let failures = 0;
@@ -20,6 +20,8 @@ for (const file of [...FILES, 'PROJECT.md']) {
   try { await fs.access(path.join(FIXTURE, file)); report(true, `Starter application: ${file}`); }
   catch { report(false, `Starter application missing: ${file}`); }
 }
+try { await fs.access(TICKET); report(true, 'Harness-owned ticket thread: fixtures/ticket/PN-142.md'); }
+catch { report(false, 'Harness-owned ticket thread missing: fixtures/ticket/PN-142.md'); }
 try {
   const browser = await getBrowser();
   const page = await browser.newPage();

@@ -62,3 +62,27 @@ test('separate input cards open their own payload and can be included together i
     assert.equal(anatomyState({...minimal,status:'running',events:[{kind}]}).cards.some(c=>c.highlight),false,kind);
   }
 });
+
+test('forced reset maps to the Agent loop only and never lights a disabled Memory card',()=>{
+  const reset={kind:'reset',title:'Context limit reached: fresh session required',call:4,resetAfterCalls:4,memory:false};
+  assert.deepEqual(componentsForEvent(reset),['loop']);
+  const off=anatomyState({...minimal,harnessVersion:4,status:'running',events:[reset]});
+  assert.deepEqual(off.cards.filter(c=>c.highlight).map(c=>c.id),['loop']);
+  assert.equal(off.cards.find(c=>c.id==='memory').highlight,false);
+  assert.equal(off.cards.find(c=>c.id==='memory').enabled,false);
+  assert.equal(off.label,'Forced session reset');
+  assert.match(off.message,/Memory is off/);
+  const on=anatomyState({...minimal,harnessVersion:4,features:{memory:true},status:'running',events:[{...reset,memory:true}]});
+  assert.deepEqual(on.cards.filter(c=>c.highlight).map(c=>c.id),['loop'],'the reset itself is loop control, not memory');
+  assert.match(on.message,/frozen handoff/);
+  for (const status of ['running','paused','completed','budget_exceeded']) assert.equal(anatomyState({...minimal,harnessVersion:4,status,events:[reset]}).cards.find(c=>c.id==='memory').highlight,false,status);
+  assert.deepEqual(anatomyState({...minimal,status:'running',events:[reset]}).trail.at(-1).components,['loop']);
+});
+test('v4 card text names the ticket thread and the two check tiers',()=>{
+  assert.match(COMPONENTS.find(c=>c.id==='context').description,/ticket thread PN-142/);
+  assert.match(COMPONENTS.find(c=>c.id==='verification').description,/visible checks/);
+  assert.match(COMPONENTS.find(c=>c.id==='verification').description,/Held-out checks are presenter-only/);
+  const features={context:true};
+  assert.match(anatomyState({...minimal,harnessVersion:4,features}).cards.find(c=>c.id==='context').note,/ticket thread/);
+  assert.doesNotMatch(anatomyState({...minimal,harnessVersion:3,features}).cards.find(c=>c.id==='context').note,/ticket/,'earlier versions never received the ticket');
+});

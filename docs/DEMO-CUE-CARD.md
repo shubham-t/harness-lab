@@ -1,24 +1,40 @@
-# Twenty-minute demo cue card
+# Twenty-minute demo cue card (v4)
 
-Keep the main story to one bug: **a draft disappears when the user changes screens or refreshes**. Saving must still preserve the whole note and the existing notes. Use the same model and the Draft scenario for both presets.
+Keep the story to one bug: **a draft disappears when the user changes screens or refreshes**. Use the same model and the Draft scenario for every run. Create fresh workspaces; they use harness version 4. The full flow with more detail is in [ANATOMY-DEMO.md](../ANATOMY-DEMO.md).
 
-| Step | What to do on screen | What to say | Concept |
+The thesis: the harness supplies **knowledge** the model cannot know, **observation** it did not make, **state** it cannot keep, and **authority** it should not have. Each step names which one it shows.
+
+The first live v4 ladder is in [the v4 live report](../live-validation/v4/RESULTS.md); in it every Minimal run produced a correct patch and never finished. Narrate what you observe, not what this card expects.
+
+| Step | What to do on screen | What to say | What it shows |
 | --- | --- | --- | --- |
-| 1. Show the bug | In a fresh workspace, type a title and body. Click My notes, then Draft. | “The unfinished text disappeared. A repair must preserve it without breaking saving or existing notes.” | Define the task and acceptance behavior |
-| 2. Run Minimal | Prepare Minimal. Point to its two blue cards. Click Run coding agent. Open an actual file/tool event. | “The model can request actions, and the harness executes them. The other five components are off in this configuration.” | Agent loop; Tools & sandbox |
-| 3. Measure Minimal | After it stops, click Evaluate outcome, then Explain & compare. | “This check is our measurement after the run. Minimal did not have to pass it to declare completion.” | Evaluation versus enforced verification |
-| 4. Run Engineered | Prepare Engineered with the same scenario and model. During a request, open Instructions & policies, then its recorded evidence. Do the same for Context management. | “The rules say preserve existing notes. The project facts identify the storage module and current revision. These are different inputs, and we can inspect what was actually sent.” | Instructions versus context |
-| 5. Inspect completion | Show the actual check results and waiting-for-approval state. Review the diff before approving. Open the published app. | “Passing checks is a requirement here. Even then, the agent stops for a human decision before applying the patch.” | Verification; Guardrails |
-| 6. Compare | Click Explain & compare and select the corresponding opposite-preset run. Read observed checks, agent status, requirements and application. | “A good patch, a completed run and an approved change are separate facts. The harness makes the requirements explicit.” | Harness engineering |
+| 1. Feel the bug | On the SANDBOX phone, type a title and body. Click My notes, then Draft. Refresh. Open Backup. | "The unfinished text disappeared. The fix must keep it without breaking saving, existing notes or the backup." | The task |
+| 2. Name the traps | Point at Backup, My notes and the editor. | "Four ways a correct-looking patch is wrong: the backup leaks the draft, existing users lose notes, typed markup becomes HTML, test ids disappear. The agent will never see the checks for these." | Held-out checks exist |
+| 3. Run Minimal | Prepare Minimal. Point to the two blue cards. Save a note on the PRODUCTION phone. Click Run coding agent. | "The model can request actions and the harness executes them. Nothing else is on." | Agent loop; Tools & sandbox |
+| 4. What it was told | Open Explain & compare, then what each agent was told. | "This is everything Minimal received. It can read PROJECT.md if it chooses. It cannot read the ticket." | Knowledge it lacks |
+| 5. Production updates | When Minimal completes, point to the production banner. | "It shipped. No check was required and nobody approved it." | Authority it should not have |
+| 6. Try the traps | On production: refresh and look for your saved note; type a draft and open Backup; type `<b>bold</b>` and switch screens. | Describe only what you see. | What production users get |
+| 7. Claims versus evidence | Open What it claimed, what was observed. | "The left side is the model's words. The right side is what it actually did after its last edit. Look for a reload behind any refresh claim." | Observation it did not make |
+| 8. Run Engineered | Prepare Engineered with the same scenario and model. Open Instructions & policies, then Context management, then what each agent was told. | "Same task, same files, same tools. It also got the project rules and the ticket thread: INC-37, the test ids, the backup privacy rule." | Knowledge; Instructions & policies; Context management |
+| 9. Gate | Show the visible checks and any blocked completion. | "Completion requires all six visible checks on this revision. A failure goes back to the model." Only mention a repair loop if one happened. | Verification |
+| 10. Approval | Show the waiting banner, open the diff, approve. Try the traps on production again. | "Even with passing checks, a person decides what ships." | Guardrails; authority |
+| 11. Held-out grading | Click Evaluate outcome on both runs. Read both tiers. | "These five checks were never shown to either agent. Engineered can fail them too." | Evaluation is separate from the agent |
+| 12. Ladder | Open Runs & evals, ladder scoreboard. | "Each row adds one component. Empty cells were not measured. A few runs are illustrative, not a rate." | Harness engineering as measurement |
 
-Memory is an optional separate demonstration: pause after a real edit, inspect Memory, then choose New session. Show the **Saved handoff included in request** event. Say: “Both retain files. Engineered also supplies a compact record of prior progress. The previous conversation is cleared.” Do not promise that this guarantees completion.
+Close with: **"The model did not get smarter."**
+
+## Optional forced reset
+
+Prepare a pair of workspaces with the same **Forced session reset** call number (`resetAfterCalls`). Show the **Context limit reached: fresh session required** event and the next prompt. Say: "The conversation is gone in both. Files remain in both. Only the run with Memory gets a handoff." This shows **state it cannot keep**. Do not promise that a handoff guarantees completion.
 
 ## Branches to rehearse
 
-- **Both fix the bug:** “The model solved both. Now compare what each runtime required before completion and application.”
-- **A check fails:** Open the failed check and its screenshot. Describe only the observed failure. Do not generalize from one trial.
-- **Budget reached with passing source:** “The partial patch passed these tests, but the agent did not finish. We report those separately.”
-- **Provider error or long delay:** Explain the actual error, then switch to labeled real rehearsal screenshots in the deck. Keep the live run's status visible; do not describe recordings as live.
-- **No matching comparison:** Verify the same task, scenario, provider/model, harness version and session count. Fresh-session trials are separate from uninterrupted trials. Do not pick an incompatible favorable result.
+- **Minimal passes everything:** "The model handled every trap this time. It still shipped with no check required and no review. One run does not tell us how often that works." Move to the ladder if you have measured one.
+- **Engineered fails a held-out check:** "It had the ticket, but it never saw this check. This is why held-out checks exist." Do not hide it.
+- **Both fail the same held-out check:** Show it. The harness made the failure visible; it did not prevent it.
+- **A visible check fails:** Open the failed check and its screenshot. Describe only the observed failure.
+- **Budget reached with passing source:** "The patch passes these checks, but the agent did not finish. Those are separate outcomes."
+- **Provider error or long delay:** Explain the actual error. Do not present historical v2 or v3 screenshots as v4 runs.
+- **No matching comparison:** Check task, scenario, provider and model, harness version, forced-reset setting and session count. Do not pick an incompatible favorable result.
 
-The protected-file probe is optional and outside the main story. Label it explicitly as a presenter-triggered sandbox test; it is not a model-generated attack or a difference between the two presets' shared sandbox boundaries.
+The protected-file probe is optional and outside the main story. Label it as a presenter-triggered sandbox test, not a model action.

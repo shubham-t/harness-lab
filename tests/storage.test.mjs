@@ -56,6 +56,7 @@ test('publication remains truthful when evidence storage fails and restart recov
   mock.mock.restore();runs.delete(run.id);await initStore();
   const recovered=runs.get(run.id);assert.equal(recovered.status,'completed');assert.equal(recovered.appliedRevision,run.appliedRevision);
   assert.ok(recovered.events.some(e=>e.title==='Published copy recovered after restart'));
+  assert.equal(recovered.appliedAt,JSON.parse(await fs.readFile(path.join(runDir(run.id),'published','.publication.json'),'utf8')).at,'Recovery restores appliedAt from the committed manifest');
 });
 test('readable interrupted runs stay visible even when recovery cannot be persisted',async t=>{
   const run=await createRun({mode:'minimal'});run.status='running';await persist(run);

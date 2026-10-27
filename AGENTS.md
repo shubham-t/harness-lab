@@ -10,7 +10,7 @@ For continuation work, first read [current project status](docs/PROJECT-STATUS.m
 - `npm start` serves the dashboard on 127.0.0.1:4318 and the application preview on 4319.
 - `npm run doctor` checks local readiness without calling a model.
 - `npm test` runs isolated automated tests sequentially. Run one test command at a time with live rehearsals idle; integration tests reserve fixed ports and launch real Chromium processes.
-- `node scripts/evaluate.mjs --trials 1 --scenarios draft,unicode,longform` makes six real model trials against the running server. This consumes provider quota. Use only when live testing is requested.
+- `node scripts/evaluate.mjs --trials 1 --scenarios draft,unicode,longform` makes six real model trials against the running server. `--ladder`, `--rungs`, `--reset-after N` and `--out FILE` run and record the v4 ladder (`--help` lists them). Every trial consumes provider quota. Use only when live testing is requested.
 
 ## Design invariants
 
@@ -24,6 +24,11 @@ For continuation work, first read [current project status](docs/PROJECT-STATUS.m
 8. Keep protected checks outside agent-editable paths. Preserve revision-bound approval, allowlisted tools, preview-origin isolation and loopback binding.
 9. Keep API keys out of source, logs, exports, screenshots and commits. Do not inspect private API history unnecessarily. UI keys live only in server memory.
 10. Restarting the server clears a memory-only key. Check for active runs first, preserve run directories, and explain the effect. Never kill unrelated processes.
+11. Harness v4 (see [the v4 design](docs/REDESIGN-V4.md)): every preset gets the same task text, starting files, budgets and tool schemas. Only what the harness supplies and requires differs.
+12. The PN-142 ticket thread is harness-owned and outside the agent-readable files. Only Context management supplies it. PROJECT.md stays readable by every preset.
+13. Held-out checks are presenter-only. Never return them to the agent in a tool result, prompt or handoff. `run_checks` and the completion gate use the visible tier only.
+14. Production is the published copy when one exists, otherwise the pristine fixture. Nothing reaches it except through `publish()`.
+15. A forced reset (`resetAfterCalls`) happens at the same call for every preset and is part of the evaluation grouping. Runs from v1 to v3 keep their recorded behavior and labels. No live v4 evidence exists until a real run records it; never pool v2/v3 evidence with v4.
 
 ## Verification and evidence
 
@@ -36,8 +41,8 @@ The deliberately buggy `fixtures/notes` is the starting point, not a defect to f
 - `lib/`: store, provider adapters, agent runner and browser checks.
 - `public/`: dashboard, event-derived anatomy cards and evidence-based audience comparison.
 - `tests/`: isolated unit, HTTP and real-browser tests.
-- `live-validation/`: historical evidence, not injected into the demo's live history.
-- `presentation/`: workshop deck, notes and rebuild source.
+- `live-validation/`: historical v1 to v3 evidence, not injected into the demo's live history. Leave it untouched.
+- `presentation/`: workshop deck, notes and rebuild source. The deck predates v4; its rebuild is pending.
 - `docs/`: operator and developer documentation.
 
 Harness v3 freezes compact memory on session reset. Keep budgets equal and retain full checkpoints as evidence. Publication must remain atomic; a later logging failure must not falsely imply that applied files were rolled back. Preserve the manifest recovery and fault-injection tests.

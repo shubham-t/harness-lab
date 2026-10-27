@@ -120,7 +120,7 @@ test('project policies and project map are independently enabled inputs',async()
 
 test('legacy configurations retain their original tool access', async () => {
   const run = await createRun({ mode: 'minimal' });
-  assert.equal(run.harnessVersion, 3);
+  assert.equal(run.harnessVersion, 4);
   delete run.harnessVersion;
   assert.ok(toolsForRun(run).some(tool => tool.name === 'run_checks'));
   assert.equal((await executeTool(run, 'save_memory', { content: 'not retained' })).saved, false);

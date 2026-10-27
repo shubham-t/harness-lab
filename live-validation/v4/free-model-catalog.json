@@ -1,0 +1,214 @@
+{
+  "checkedAt": "2026-10-26T16:56:29.549Z",
+  "source": "https://openrouter.ai/api/v1/models",
+  "note": "Free models (prompt and completion price 0) whose supported_parameters include tools, considered for the v4 live ladder. Availability and pricing must be checked again before any later rehearsal.",
+  "candidates": [
+    {
+      "id": "poolside/laguna-s-2.1:free",
+      "name": "Poolside: Laguna S 2.1 (free)",
+      "contextLength": 262144,
+      "maxCompletionTokens": 32768,
+      "modality": "text->text",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supportedParameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "temperature",
+        "tool_choice",
+        "tools"
+      ]
+    },
+    {
+      "id": "poolside/laguna-xs-2.1:free",
+      "name": "Poolside: Laguna XS 2.1 (free)",
+      "contextLength": 262144,
+      "maxCompletionTokens": 32768,
+      "modality": "text->text",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supportedParameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "temperature",
+        "tool_choice",
+        "tools"
+      ]
+    },
+    {
+      "id": "cohere/north-mini-code:free",
+      "name": "Cohere: North Mini Code (free)",
+      "contextLength": 256000,
+      "maxCompletionTokens": 64000,
+      "modality": "text->text",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supportedParameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "seed",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ]
+    },
+    {
+      "id": "google/gemma-4-31b-it:free",
+      "name": "Google: Gemma 4 31B (free)",
+      "contextLength": 262144,
+      "maxCompletionTokens": 32768,
+      "modality": "text+image+video->text",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supportedParameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ]
+    },
+    {
+      "id": "nvidia/nemotron-3.5-lightning:free",
+      "name": "NVIDIA: Nemotron 3.5 Lightning (free)",
+      "contextLength": 1000000,
+      "maxCompletionTokens": 65536,
+      "modality": "text->text",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supportedParameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ]
+    },
+    {
+      "id": "xingchen-agi/xing4.0-29b-a4b:free",
+      "name": "XingChen: Xing4.0 29B A4B (free)",
+      "contextLength": 262144,
+      "maxCompletionTokens": 235929,
+      "modality": "text->text",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supportedParameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ]
+    },
+    {
+      "id": "recursive/flint-v1.0:free",
+      "name": "Recursive: Flint (free)",
+      "contextLength": 262144,
+      "maxCompletionTokens": 235929,
+      "modality": "text->text",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supportedParameters": [
+        "include_reasoning",
+        "logprobs",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "seed",
+        "stop",
+        "temperature",
+        "tools",
+        "top_logprobs",
+        "top_p"
+      ]
+    },
+    {
+      "id": "thinkingmachines/inkling:free",
+      "name": "Thinking Machines: Inkling (free)",
+      "contextLength": 1048576,
+      "maxCompletionTokens": 262144,
+      "modality": "text+image+audio->text",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supportedParameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
+        "stop",
+        "temperature",
+        "tools",
+        "top_p"
+      ]
+    },
+    {
+      "id": "nvidia/nemotron-3-super-120b-a12b:free",
+      "name": "NVIDIA: Nemotron 3 Super (free)",
+      "contextLength": 262144,
+      "maxCompletionTokens": 235929,
+      "modality": "text->text",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supportedParameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "response_format",
+        "seed",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ]
+    }
+  ]
+}

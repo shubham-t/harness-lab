@@ -104,6 +104,11 @@ test('dashboard interactions in a real browser without API credentials', { timeo
     await page.locator('#keyless-checks').click();
     await page.waitForFunction(() => document.querySelector('#checks-summary').textContent.includes('4/6'), null, { timeout: 45000 });
     assert.match(await page.locator('#anatomy-now').innerText(), /Presenter evaluation/);
+    // Unfixed fixture: held-out [true, true, false, true, false] in its own presenter-only group.
+    await page.waitForFunction(() => document.querySelector('#checks-summary').textContent === '4/6 visible · 3/5 held-out');
+    assert.deepEqual(await page.locator('#heldout-check-grid .check-item').evaluateAll(items => items.map(item => item.classList.contains('pass'))), [true, true, false, true, false]);
+    assert.equal(await page.locator('#heldout-checks-summary').innerText(), '3/5 passed · presenter evaluation');
+    assert.match(await page.locator('#anatomy-now').innerText(), /4\/6 visible · 3\/5 held-out passed/);
     assert.equal((await state()).runs[0].usage.calls, 0);
     await page.locator('[data-check="0"]').click();
     assert.match(await page.locator('#modal-body').innerText(), /FAILED/);

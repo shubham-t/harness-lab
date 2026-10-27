@@ -1,8 +1,8 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ROOT, DATA, FILES, runs, runDir, workspace, initStore, createRun, publicRun, persist, event, diff, revision, noteStorageFailure } from './lib/store.mjs';
-import { getBrowser, closeBrowser, runChecks, CHECK_NAMES, CHECK_SUITE_VERSION, previewOrigin } from './lib/browser.mjs';
+import { ROOT, DATA, FILES, FIXTURE, runs, runDir, workspace, initStore, createRun, publicRun, persist, event, diff, revision, noteStorageFailure } from './lib/store.mjs';
+import { getBrowser, closeBrowser, runChecks, CHECK_NAMES, HELD_OUT_CHECK_NAMES, CHECK_SUITE_VERSION, previewOrigin } from './lib/browser.mjs';
 import { getPublicConfig, configureProvider, testConnection } from './lib/provider.mjs';
 import { startRun, pauseRun, resumeRun, approveRun, executeTool, running } from './lib/runner.mjs';
 
@@ -40,18 +40,21 @@ function evaluationSummary() {
   for (const run of eligible) {
     const suiteVersion = run.checks ? run.checks.suiteVersion || 'notes-v1' : 'unassessed';
     const harnessVersion = run.harnessVersion || 1;
-    const key = JSON.stringify([run.provider?.model, run.provider?.baseUrl, run.provider?.protocol, run.features, run.scenario, suiteVersion, harnessVersion]);
-    if (!groups.has(key)) groups.set(key, { mode: run.mode, features: run.features, model: run.provider?.model, scenario: run.scenario, suiteVersion, harnessVersion, trials: 0, verified: 0, recordedPasses: 0, failed: 0, inputTokens: 0, outputTokens: 0, unreportedRequests: 0, elapsedMs: 0, runIds: [] });
+    const resetAfterCalls = run.resetAfterCalls ?? null;
+    const key = JSON.stringify([run.provider?.model, run.provider?.baseUrl, run.provider?.protocol, run.features, run.scenario, suiteVersion, harnessVersion, resetAfterCalls]);
+    if (!groups.has(key)) groups.set(key, { mode: run.mode, features: run.features, model: run.provider?.model, scenario: run.scenario, suiteVersion, harnessVersion, resetAfterCalls, trials: 0, verified: 0, heldOutVerified: 0, recordedPasses: 0, failed: 0, inputTokens: 0, outputTokens: 0, unreportedRequests: 0, elapsedMs: 0, runIds: [] });
     const group = groups.get(key); group.trials++;
     if (run.checks?.revision === run.revision && run.checks.passed === run.checks.total && run.checks.total > 0) {
       group.recordedPasses++;
       if (suiteVersion === CHECK_SUITE_VERSION) group.verified++;
     }
+    const heldOut = run.checks?.heldOut;
+    if (heldOut?.suiteVersion === CHECK_SUITE_VERSION && heldOut.revision === run.revision && heldOut.passed === heldOut.total && heldOut.total > 0) group.heldOutVerified++;
     if (['failed', 'budget_exceeded'].includes(run.status)) group.failed++;
     group.inputTokens += run.usage.input; group.outputTokens += run.usage.output; group.elapsedMs += run.elapsedMs; group.runIds.push(run.id);
     group.unreportedRequests += run.usage.unreportedRequests || 0;
   }
-  return { groups: [...groups.values()], count: eligible.length, checkSuiteVersion: CHECK_SUITE_VERSION, note: `Only actual model runs. Groups separate scenario, model, provider, harness configuration, and check suite version. Verified counts require ${CHECK_SUITE_VERSION} on the current source revision; historical results remain visible. Ready workspaces and manual checks are excluded. Small samples are illustrative, not reliability estimates.` };
+  return { groups: [...groups.values()], count: eligible.length, checkSuiteVersion: CHECK_SUITE_VERSION, note: `Only actual model runs. Groups separate scenario, model, provider, harness configuration, harness version, forced-reset setting, and check suite version. Verified counts require visible ${CHECK_SUITE_VERSION} checks on the current source revision; heldOutVerified counts require the presenter-only held-out tier to pass in full on that revision; historical results remain visible. Ready workspaces and manual checks are excluded. Small samples are illustrative, not reliability estimates.` };
 }
 const app = http.createServer(async (req, res) => {
   headers(res);
@@ -63,7 +66,7 @@ const app = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/')) {
       if (!['GET', 'POST'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
       if (req.method === 'POST' && (req.headers['x-harness-client'] !== 'local' || !req.headers['content-type']?.startsWith('application/json'))) return json(res, 403, { error: 'Missing local client request headers.' });
-      if (pathname === '/api/state' && req.method === 'GET') return json(res, 200, { provider: getPublicConfig(), browser: browserStatus, runs: [...runs.values()].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(publicRun), previewOrigin: previewOrigin(), checkNames: CHECK_NAMES, checkSuiteVersion: CHECK_SUITE_VERSION });
+      if (pathname === '/api/state' && req.method === 'GET') return json(res, 200, { provider: getPublicConfig(), browser: browserStatus, runs: [...runs.values()].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(publicRun), previewOrigin: previewOrigin(), checkNames: CHECK_NAMES, heldOutCheckNames: HELD_OUT_CHECK_NAMES, checkSuiteVersion: CHECK_SUITE_VERSION });
       if (pathname === '/api/evals' && req.method === 'GET') return json(res, 200, evaluationSummary());
       if (pathname === '/api/config' && req.method === 'POST') {
         if ([...runs.values()].some(r => running(r.id))) throw new Error('Pause active runs before changing the provider.');
@@ -74,7 +77,7 @@ const app = http.createServer(async (req, res) => {
         const options = await body(req);
         if (options.source && options.source !== 'live') throw new Error('Only real model runs are supported.');
         const p = getPublicConfig();
-        const run = await createRun({ mode: options.mode, features: options.features, scenario: options.scenario, provider: { model: p.model, baseUrl: p.baseUrl, protocol: p.protocol } });
+        const run = await createRun({ mode: options.mode, features: options.features, scenario: options.scenario, resetAfterCalls: options.resetAfterCalls, provider: { model: p.model, baseUrl: p.baseUrl, protocol: p.protocol } });
         return json(res, 201, publicRun(run));
       }
       const match = pathname.match(/^\/api\/runs\/([a-f0-9-]{36})(?:\/(.*))?$/);
@@ -108,9 +111,13 @@ const app = http.createServer(async (req, res) => {
             requireIdle(run); manualChecks.add(run.id);
             try {
               await event(run, 'checks', 'Presenter evaluation started', 'The presenter is running independent browser checks. This action is outside the agent workflow.', { origin: 'presenter', phase: 'start' });
-              run.checks = await runChecks(run);
-              run.checks.origin = 'presenter';
-              await event(run, 'checks', `${run.checks.passed}/${run.checks.total} checks passed`, `Presenter evaluation of source revision ${run.checks.revision}. This did not change the agent's completion decision.`, { result: run.checks, origin: 'presenter', phase: 'end' });
+              // Both tiers: run.checks is the visible result, run.checks.heldOut the held-out result.
+              const checks = await runChecks(run, { tier: 'all' });
+              checks.origin = 'presenter';
+              checks.heldOut.origin = 'presenter';
+              run.checks = checks;
+              const lines = result => result.results.map(item => `${item.passed ? 'PASS' : 'FAIL'} ${item.name}: ${item.detail}`).join('\n');
+              await event(run, 'checks', `${checks.passed}/${checks.total} checks passed`, `Presenter evaluation of source revision ${checks.revision}. This did not change the agent's completion decision.\n\nChecks the agent can run (visible tier): ${checks.passed}/${checks.total} passed.\n${lines(checks)}\n\nHeld-out checks (presenter only, never shown to the agent): ${checks.heldOut.passed}/${checks.heldOut.total} passed.\n${lines(checks.heldOut)}`, { result: checks, origin: 'presenter', phase: 'end' });
             } catch (error) { await event(run, 'error', 'Browser checks could not finish', error.message); throw error; }
             finally { manualChecks.delete(run.id); }
           } else if (action === 'probe') {
@@ -142,8 +149,15 @@ const preview = http.createServer(async (req, res) => {
   try {
     if (req.method !== 'GET') return json(res, 405, { error: 'Preview is read-only over HTTP' });
     const pathname = decodeURIComponent(new URL(req.url, previewOrigin()).pathname);
-    const match = pathname.match(/^\/(preview|published)\/([a-f0-9-]{36})\/(.*)$/);
+    const match = pathname.match(/^\/(preview|published|production)\/([a-f0-9-]{36})\/(.*)$/);
     if (!match || !runs.has(match[2]) || !FILES.includes(match[3])) return json(res, 404, { error: 'Preview asset not found' });
+    if (match[1] === 'production') {
+      // Production is the committed publication when one exists, otherwise the pristine fixture.
+      // Nothing reaches it except through publish().
+      const published = path.join(runDir(match[2]), 'published', match[3]);
+      const applied = runs.get(match[2]).appliedRevision && await fs.access(published).then(() => true, () => false);
+      return await file(res, applied ? published : path.join(FIXTURE, match[3]));
+    }
     const base = match[1] === 'published' ? path.join(runDir(match[2]), 'published') : workspace(match[2]);
     return await file(res, path.join(base, match[3]));
   } catch { return json(res, 404, { error: 'Preview unavailable' }); }

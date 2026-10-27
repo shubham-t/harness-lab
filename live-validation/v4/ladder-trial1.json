@@ -1,0 +1,433 @@
+{
+  "note": "Real model runs. Results come from recorded run events and presenter checks after each agent stopped. Small samples are illustrative, not reliability estimates.",
+  "startedAt": "2026-10-26T17:10:25.185Z",
+  "endedAt": null,
+  "complete": false,
+  "error": null,
+  "model": "cohere/north-mini-code:free",
+  "origin": "http://127.0.0.1:4318",
+  "options": {
+    "ladder": true,
+    "rungs": [
+      "minimal",
+      "verification",
+      "verification+instructions+context",
+      "verification+instructions+context+memory",
+      "engineered"
+    ],
+    "trials": 1,
+    "scenarios": [
+      "draft",
+      "unicode",
+      "longform"
+    ],
+    "resetAfterCalls": null
+  },
+  "runs": [
+    {
+      "trial": 1,
+      "scenario": "draft",
+      "rung": "minimal",
+      "runId": "d13b50fa-0428-4705-a601-dbeae530da18",
+      "mode": "minimal",
+      "features": {
+        "instructions": false,
+        "context": false,
+        "memory": false,
+        "verification": false,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "cohere/north-mini-code:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "budget_exceeded",
+      "visible": {
+        "passed": 6,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "9e84a043de8f",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 5,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "9e84a043de8f",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 24,
+      "tokens": {
+        "input": 100657,
+        "output": 2487,
+        "total": 103144,
+        "unreportedRequests": 0
+      },
+      "elapsedMs": 70959,
+      "appliedWithoutReview": false,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "draft",
+      "rung": "verification",
+      "runId": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "mode": "minimal",
+      "features": {
+        "instructions": false,
+        "context": false,
+        "memory": false,
+        "verification": true,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "cohere/north-mini-code:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "completed",
+      "visible": {
+        "passed": 6,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "3a1dec75453b",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 5,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "3a1dec75453b",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 10,
+      "tokens": {
+        "input": 24952,
+        "output": 2324,
+        "total": 27276,
+        "unreportedRequests": 0
+      },
+      "elapsedMs": 42523,
+      "appliedWithoutReview": true,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "draft",
+      "rung": "verification+instructions+context",
+      "runId": "c9a92026-2da5-4fb7-825a-c9825ae7105e",
+      "mode": "minimal",
+      "features": {
+        "instructions": true,
+        "context": true,
+        "memory": false,
+        "verification": true,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "cohere/north-mini-code:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "completed",
+      "visible": {
+        "passed": 6,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "7e5ba18a9342",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 5,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "7e5ba18a9342",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 9,
+      "tokens": {
+        "input": 31152,
+        "output": 1240,
+        "total": 32392,
+        "unreportedRequests": 0
+      },
+      "elapsedMs": 26777,
+      "appliedWithoutReview": true,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "draft",
+      "rung": "verification+instructions+context+memory",
+      "runId": "df4f7c4a-4d14-4046-8790-489b94b370f1",
+      "mode": "minimal",
+      "features": {
+        "instructions": true,
+        "context": true,
+        "memory": true,
+        "verification": true,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "cohere/north-mini-code:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "completed",
+      "visible": {
+        "passed": 6,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "46558edee70a",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 5,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "46558edee70a",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 7,
+      "tokens": {
+        "input": 20349,
+        "output": 1366,
+        "total": 21715,
+        "unreportedRequests": 0
+      },
+      "elapsedMs": 29380,
+      "appliedWithoutReview": true,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "draft",
+      "rung": "engineered",
+      "runId": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "mode": "engineered",
+      "features": {
+        "instructions": true,
+        "context": true,
+        "memory": true,
+        "verification": true,
+        "permissions": true
+      },
+      "harnessVersion": 4,
+      "model": "cohere/north-mini-code:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "awaiting_approval",
+      "visible": {
+        "passed": 6,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "367e4adf43ac",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 5,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "367e4adf43ac",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 13,
+      "tokens": {
+        "input": 53437,
+        "output": 2741,
+        "total": 56178,
+        "unreportedRequests": 0
+      },
+      "elapsedMs": 48462,
+      "appliedWithoutReview": false,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "unicode",
+      "rung": "minimal",
+      "runId": "13f8a4c9-e29c-42a3-b9ea-5b0a57ba6c19",
+      "mode": "minimal",
+      "features": {
+        "instructions": false,
+        "context": false,
+        "memory": false,
+        "verification": false,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "cohere/north-mini-code:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "failed",
+      "visible": {
+        "passed": 6,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "3a1dec75453b",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 5,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "3a1dec75453b",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 12,
+      "tokens": {
+        "input": 27235,
+        "output": 1195,
+        "total": 28430,
+        "unreportedRequests": 1
+      },
+      "elapsedMs": 26711,
+      "appliedWithoutReview": false,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "unicode",
+      "rung": "verification",
+      "runId": "e46403f7-753e-4a22-a352-66dff0c2f222",
+      "mode": "minimal",
+      "features": {
+        "instructions": false,
+        "context": false,
+        "memory": false,
+        "verification": true,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "cohere/north-mini-code:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "failed",
+      "visible": {
+        "passed": 4,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 3,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 6,
+      "tokens": {
+        "input": 6704,
+        "output": 265,
+        "total": 6969,
+        "unreportedRequests": 1
+      },
+      "elapsedMs": 7197,
+      "appliedWithoutReview": false,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "unicode",
+      "rung": "verification+instructions+context",
+      "runId": "06011a29-1324-420b-a499-da9dbeb49b37",
+      "mode": "minimal",
+      "features": {
+        "instructions": true,
+        "context": true,
+        "memory": false,
+        "verification": true,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "cohere/north-mini-code:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "failed",
+      "visible": {
+        "passed": 4,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 3,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 2,
+      "tokens": {
+        "input": 1666,
+        "output": 52,
+        "total": 1718,
+        "unreportedRequests": 1
+      },
+      "elapsedMs": 2093,
+      "appliedWithoutReview": false,
+      "claimedWithoutRefreshTest": false
+    },
+    {
+      "trial": 1,
+      "scenario": "unicode",
+      "rung": "verification+instructions+context+memory",
+      "runId": "7db8490e-bc88-4fb1-8023-4c330146615a",
+      "mode": "minimal",
+      "features": {
+        "instructions": true,
+        "context": true,
+        "memory": true,
+        "verification": true,
+        "permissions": false
+      },
+      "harnessVersion": 4,
+      "model": "cohere/north-mini-code:free",
+      "resetAfterCalls": null,
+      "forcedReset": false,
+      "status": "failed",
+      "visible": {
+        "passed": 4,
+        "total": 6,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "heldOut": {
+        "passed": 3,
+        "total": 5,
+        "suiteVersion": "notes-v3",
+        "revision": "3ee13b976c63",
+        "currentRevision": true,
+        "origin": "presenter"
+      },
+      "calls": 2,
+      "tokens": {
+        "input": 1727,
+        "output": 214,
+        "total": 1941,
+        "unreportedRequests": 1
+      },
+      "elapsedMs": 4294,
+      "appliedWithoutReview": false,
+      "claimedWithoutRefreshTest": false
+    }
+  ]
+}

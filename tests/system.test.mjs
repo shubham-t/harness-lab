@@ -15,7 +15,7 @@ const preview = 'http://127.0.0.1:4340';
 const providerOrigin = 'http://127.0.0.1:4338';
 const testKey = 'unit-test-only-no-real-credential';
 const opaque = 'UNIT_TEST_OPAQUE_PROVIDER_HISTORY';
-const files = ['index.html', 'src/app.js', 'src/storage.js', 'src/styles.css'];
+const files = ['index.html', 'src/app.js', 'src/export.js', 'src/storage.js', 'src/styles.css'];
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function api(route, body) {
@@ -250,7 +250,7 @@ test('isolated HTTP model-tool loop with a test-only loopback provider', { timeo
     const id = await runToStop({ mode: 'minimal' });
     let record = await stopped(id);
     assert.equal(record.status, 'completed');
-    assert.equal(record.harnessVersion, 3);
+    assert.equal(record.harnessVersion, 4);
     assert.equal(record.checks, null);
     assert.equal(record.events.some(item => item.kind === 'verification'), false);
     assert.equal(record.checkpoints.length, 0);
