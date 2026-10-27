@@ -1,25 +1,49 @@
 # Workshop presentation
 
-Open **Agent-Harness-Workshop.pptx** in PowerPoint. It contains 35 editable slides with speaker notes. The demo screenshots are embedded images from real local runs. Supporting notes are also available in [speaker-notes.md](speaker-notes.md).
+Open **Agent-Harness-Workshop.pptx** in PowerPoint. It contains 48 editable slides with speaker notes: 20 concept slides, the harness v4 demo on slides 21 to 32, three closing slides, and a labeled historical appendix on slides 36 to 48 that keeps the earlier v2 and v3 demo slides. The same notes are in [speaker-notes.md](speaker-notes.md), which `build.mjs` generates; edit notes in `build.mjs`, not in the Markdown file.
 
-**The deck predates harness v4.** Its demo slides show the v2 and v3 app: no Backup screen, no production phone, a single check tier and no ladder. All of that evidence is historical. The rebuild for v4 is pending and should use real v4 screens once a live v4 run exists; none does yet. Until then, [speaker-notes.md](speaker-notes.md) has notes 21 to 32 for the v4 flow and keeps the current deck's demo-slide notes in a labeled appendix. Present the v4 flow from the live app and [ANATOMY-DEMO.md](../ANATOMY-DEMO.md). Note that `build.mjs` regenerates `speaker-notes.md` from its own slide source, which is still the pre-v4 deck. Running it before the v4 rebuild would overwrite the v4 notes; move them into `build.mjs` as part of the rebuild.
+**Rebuilt for harness v4 on 27 October 2026.** The demo slides show the first live v4 ladder, recorded on 26 October 2026 with OpenRouter `cohere/north-mini-code:free`, one trial per rung and scenario (see [the v4 live report](../live-validation/v4/RESULTS.md)). Their images are screenshots of those recorded runs taken from the dashboard on 27 October 2026. They live in `assets/v4/`, and `assets/v4/manifest.json` names the run behind every file. Each demo slide states its run id, the run date and the screenshot date. The screenshots are recorded evidence, not current live execution: present the demo from the live app and [ANATOMY-DEMO.md](../ANATOMY-DEMO.md), and narrate the outcome you actually get.
 
-The deck uses the demo's cream, green, blue and orange palette. It covers the source presentation's concepts, then the seven-component demo, real results and limitations. [Coverage mapping](SOURCE-COVERAGE.md) explains the adaptation. [Presenter runbook](../docs/PRESENTER.md) gives setup, timing and fallback instructions.
+| Slide | Run(s) shown | What the screenshot is |
+| --- | --- | --- |
+| 21 | `d13b50fa` (Minimal, draft) | The Backup screen of the starting app on the production phone (original build) |
+| 22 | `d13b50fa` | Anatomy board with two enabled cards; the Minimal column of "What each agent was told" |
+| 23 | `d13b50fa`, `d017cd57` (+Verification, draft) | Both phones of each run; production banners "Original build" and "Updated automatically by the agent. No review." |
+| 24 | `d017cd57` | The production phone after the presenter's own trap checks on 27 October 2026 |
+| 25 | `d017cd57` | The claims versus evidence panel |
+| 26 | `d13b50fa`, `5794a37d` (Engineered, draft) | "What each agent was told" side by side; the Context management evidence scrolled to ticket PN-142; the seven-card board |
+| 27 | `d017cd57` | The activity list at the agent's first `run_checks` call |
+| 28 | `5794a37d` | Both phones after approval; the activity list at the approval boundary; the diff's AFTER panel |
+| 29 | `5794a37d` | The Browser verification card with both tiers after presenter evaluation |
+| 30 | `b4feef72` (+Memory, forced reset after call 8) | The reset event and the next prompt; the frozen handoff supplied to session 2 |
+| 31 | the draft-scenario ladder | The ladder scoreboard filtered to `cohere/north-mini-code:free · draft · harness v4 · no forced reset` |
+| 32 | none | Text only |
 
-The screenshots are recorded evidence. Do not present them as current live execution. Real runs require the app and a provider connection. The results include successful Minimal runs and failures; the deck makes no statistical reliability claim.
+Honesty notes for the presenter:
 
-Slides 28–29 show the historical v3 Draft pair from 26 October 2026 using OpenRouter `cohere/north-mini-code:free`. Both passed 6/6. The comparison screenshot captures Engineered **before approval**. The following slide records the later reviewed approval and successful independent validation of both published apps. The 73.080/89.012-second timings describe the recorded pre-approval runs and exclude subsequent human review. Slides 21–27 and 30–31 retain explicitly labelled historical v2 evidence from 25 October, using a different model. Do not pool these versions. Slide 31's memory trial is historical and does not claim successful v3 memory completion.
+- No Minimal run completed in the ladder, so the automatic-publication banner on slide 23 comes from the +Verification rung (`d017cd57`), the first rung that finished. The slide and its notes say so.
+- The trap checks on slide 24 are presenter actions on the published production copy of `d017cd57`, not agent actions.
+- No completion request was rejected by the gate in these runs. Slide 27 shows the agent's own `run_checks` calls (4/6 before editing, 6/6 after) and says a repair loop should be shown only if one appears.
+- The ladder slide shows one scenario, as the dashboard does. The three-scenario totals quoted beside it come from the v4 report.
+- Times inside screenshots are local to the laptop that recorded them (Asia/Calcutta). One trial per cell is illustrative, not a reliability rate.
+
+The appendix slides keep their original text and labels. Slides 44 and 45 show the historical v3 Draft pair from 26 October 2026 (`cohere/north-mini-code:free`, both 6/6; the comparison screenshot captures Engineered before approval; the 73.080/89.012-second timings exclude human review). Slides 37 to 43, 46 and 47 keep the v2 rehearsal of 25 October 2026 with `nvidia/nemotron-3.5-super-vl:free`. Do not pool these versions with each other or with v4.
+
+The deck uses the demo's cream, green, blue and orange palette. [Coverage mapping](SOURCE-COVERAGE.md) explains the adaptation of the reference deck. [Presenter runbook](../docs/PRESENTER.md) gives setup, timing and fallback instructions.
 
 ## Rebuild
 
-The 35-slide update passed package, layout, font-policy and first-party re-import checks with no findings. Native Microsoft PowerPoint opened and exported all slides; changed slides were visually inspected, following the earlier inspection of the original deck. Projector readability and a timed spoken rehearsal still need checking in the presentation room.
-
-`build.mjs` uses `@oai/artifact-tool` from the Codex artifact runtime. It is an optional presentation authoring dependency, not required to run Harness Lab. Set ARTIFACT_NODE_MODULES to that runtime's node_modules directory and DECK_BUILD_DIR to a private build folder. Run the script with the corresponding Node runtime. It writes a candidate PPTX, individual slide PNGs and speaker notes. The final delivered deck has additionally passed the presentation package/layout validation workflow.
+`build.mjs` writes the deck and `speaker-notes.md` with [pptxgenjs](https://www.npmjs.com/package/pptxgenjs); the Codex artifact runtime is no longer needed (the earlier source that needed it is in git history before this rebuild). pptxgenjs is an authoring dependency only and is not part of the application's `package.json`.
 
 ```powershell
-$env:ARTIFACT_NODE_MODULES = 'C:/path/to/artifact-runtime/node_modules'
-$env:DECK_BUILD_DIR = Join-Path $PWD 'presentation/.build'
+npm install --no-save pptxgenjs
 node presentation/build.mjs
 ```
 
-All screenshot assets used for the deck are in `assets/`. The original reference file remains in the user's Downloads folder and is not copied into this repository.
+Alternatively set `DECK_NODE_MODULES` to any `node_modules` directory that contains pptxgenjs. `--out <file>` writes the deck elsewhere.
+
+`capture-v4.mjs` takes the dashboard screenshots. Start the server with `npm start`, then run `node presentation/capture-v4.mjs` (optionally `--origin` and `--out`). It is read-only against the server and never starts a model run; the only writes are the presenter's trap checks typed into a run's published production copy, inside the script's throwaway browser profile. It selects the runs by id prefix at the top of the file; to use newer runs, change those prefixes, then update the run ids and dates named in `build.mjs`.
+
+Checks performed on 27 October 2026: the OOXML package validator passed with no findings; native Microsoft PowerPoint opened the deck, reported 48 notes pages and exported all 48 slides as PNG, which were inspected for title fit, text overflow and image placement; `slide_text` extraction found no leftover placeholders and no key-like strings in slide text, notes or the manifest. Projector readability and a timed spoken rehearsal with the rebuilt deck still need checking in the presentation room.
+
+`assets/` holds the v2 and v3 screenshots used by the appendix; `assets/v4/` holds the v4 screenshots and their manifest. `preview.png` is slide 21. The original reference deck remains in the user's Downloads folder and is not copied into this repository.

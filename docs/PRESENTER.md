@@ -12,7 +12,7 @@ For the live segment, keep [the twenty-minute cue card](DEMO-CUE-CARD.md) open. 
 | 45–55 | Ladder results, limitations and team practices |
 | 55–60 | Questions and buffer |
 
-The speaker notes are in `presentation/Agent-Harness-Workshop.pptx` and [speaker-notes.md](../presentation/speaker-notes.md). The deck predates v4. Its demo slides show historical v2 and v3 screens; the rebuild for v4 is pending. Use the live app for the v4 flow.
+The speaker notes are in `presentation/Agent-Harness-Workshop.pptx` and [speaker-notes.md](../presentation/speaker-notes.md). The deck was rebuilt for v4 on 27 October 2026: slides 21 to 32 show the first live v4 ladder with screenshots of the recorded runs (run id and dates on every slide), and the v2 and v3 demo slides are a labeled appendix. The screenshots are recorded evidence; run the live app for the demo and narrate what actually happens.
 
 ## The thesis
 

@@ -58,7 +58,7 @@ Not established, and to be stated as such in anything you write:
 - That the traps (backup leaking a draft, lost user notes, HTML interpreted, test ids dropped) are tripped by a model: this model tripped none of them. They are measured, not demonstrated.
 - Whether the 24-call budget is fair to Minimal on the v4 fixture. It is equal for every rung, and Minimal chose manual testing, but a presenter should say so plainly rather than imply Minimal cannot fix the bug.
 - The HTTP 429 retry path has unit tests and never fired in a live run after pacing was enabled.
-- The workshop deck: check PROJECT-STATUS for whether the v4 rebuild has landed. If it has not, the deck still shows v2 and v3 screens.
+- The workshop deck was rebuilt for v4 on 27 October 2026 with screenshots of the recorded ladder (see presentation/README.md). It has not been shown on the presentation projector or rehearsed against the clock.
 - Behavior with a paid model, with a second model, on macOS, behind a corporate proxy, or on the presentation projector.
 
 ## 5. Rules

@@ -60,7 +60,7 @@ Do not claim success for unperformed tests. The v4 ladder is one trial per cell;
 
 ## Slides and history
 
-Open [the PowerPoint](../presentation/Agent-Harness-Workshop.pptx) directly. [PROJECT-STATUS.md](PROJECT-STATUS.md) says whether the v4 rebuild has landed; until then the demo slides show historical v2 and v3 screens, and [the speaker notes](../presentation/speaker-notes.md) already describe the v4 flow. The optional presentation-authoring runtime is not required to run the app.
+Open [the PowerPoint](../presentation/Agent-Harness-Workshop.pptx) directly. It was rebuilt for v4 on 27 October 2026 (48 slides; the v2 and v3 demo slides are a labeled appendix), and [the speaker notes](../presentation/speaker-notes.md) match it. [PROJECT-STATUS.md](PROJECT-STATUS.md) records how it was validated. Rebuilding needs only Node and pptxgenjs (`npm install --no-save pptxgenjs`); see [the presentation guide](../presentation/README.md). Nothing in the presentation folder is required to run the app.
 
 The repository contains historical exports and screenshots, not the previous laptop's live runtime history or credentials. A fresh checkout starts without those workspaces. Do not import recordings as live runs or describe screenshots as current execution.
 

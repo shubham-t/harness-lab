@@ -42,7 +42,7 @@ The deliberately buggy `fixtures/notes` is the starting point, not a defect to f
 - `public/`: dashboard, event-derived anatomy cards and evidence-based audience comparison.
 - `tests/`: isolated unit, HTTP and real-browser tests.
 - `live-validation/`: historical v1 to v3 evidence, not injected into the demo's live history. Leave it untouched.
-- `presentation/`: workshop deck, notes and rebuild source. The deck predates v4; its rebuild is pending.
+- `presentation/`: workshop deck, generated speaker notes and rebuild source (`build.mjs` with pptxgenjs, `capture-v4.mjs` for dashboard screenshots of recorded runs). Rebuilt for v4 on 27 October 2026; edit notes in `build.mjs`.
 - `docs/`: operator and developer documentation.
 
 Harness v3 freezes compact memory on session reset. Keep budgets equal and retain full checkpoints as evidence. Publication must remain atomic; a later logging failure must not falsely imply that applied files were rolled back. Preserve the manifest recovery and fault-injection tests.

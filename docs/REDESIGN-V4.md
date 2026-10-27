@@ -177,7 +177,7 @@ Update so that the documents describe v4 truthfully:
 - `docs/ARCHITECTURE.md`, `docs/TESTING.md`: tiers, ticket, production route, forced reset, new tests.
 - `docs/PROJECT-STATUS.md`: v4 implemented and covered by automated tests; no live v4 evidence yet; the next step is running the ladder with a reliable paid model; v2 and v3 evidence stays historical and must not be pooled with v4.
 - `AGENTS.md`: add the new invariants from this document, keep it short.
-- `presentation/speaker-notes.md`: rewrite the demo slides' notes for the new flow and mark the deck rebuild as pending.
+- `presentation/speaker-notes.md`: rewrite the demo slides' notes for the new flow and mark the deck rebuild as pending. (The deck itself was rebuilt for v4 on 27 October 2026; see `presentation/README.md`.)
 - Leave `live-validation/` untouched.
 
 ## Process rules for everyone working on this

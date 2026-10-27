@@ -1,0 +1,310 @@
+{
+  "capturedAt": "2026-10-27T02:02:45.413Z",
+  "origin": "http://127.0.0.1:4318",
+  "checkSuiteVersion": "notes-v3",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "deviceScaleFactor": 2
+  },
+  "runs": {
+    "minimal": {
+      "id": "d13b50fa-0428-4705-a601-dbeae530da18",
+      "status": "budget_exceeded",
+      "scenario": "draft",
+      "model": "cohere/north-mini-code:free",
+      "createdAt": "2026-10-26T17:10:25.215Z",
+      "appliedAt": null,
+      "resetAfterCalls": null,
+      "calls": 24
+    },
+    "verification": {
+      "id": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed",
+      "scenario": "draft",
+      "model": "cohere/north-mini-code:free",
+      "createdAt": "2026-10-26T17:11:41.748Z",
+      "appliedAt": "2026-10-26T17:12:24.252Z",
+      "resetAfterCalls": null,
+      "calls": 10
+    },
+    "engineered": {
+      "id": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed",
+      "scenario": "draft",
+      "model": "cohere/north-mini-code:free",
+      "createdAt": "2026-10-26T17:13:36.581Z",
+      "appliedAt": "2026-10-26T17:15:01.015Z",
+      "resetAfterCalls": null,
+      "calls": 13
+    },
+    "resetMemory": {
+      "id": "b4feef72-e6e6-4c12-94db-de71f35c3a4c",
+      "status": "budget_exceeded",
+      "scenario": "draft",
+      "model": "cohere/north-mini-code:free",
+      "createdAt": "2026-10-26T17:38:30.011Z",
+      "appliedAt": null,
+      "resetAfterCalls": 8,
+      "calls": 24
+    },
+    "resetVerification": {
+      "id": "b1f14631-0271-42a8-bd69-3a706ce94b0f",
+      "status": "budget_exceeded",
+      "scenario": "draft",
+      "model": "cohere/north-mini-code:free",
+      "createdAt": "2026-10-26T17:34:51.252Z",
+      "appliedAt": null,
+      "resetAfterCalls": 8,
+      "calls": 24
+    }
+  },
+  "files": {
+    "minimal-status.png": {
+      "note": "Run header: Minimal harness, Budget reached, 24 model calls",
+      "run": "d13b50fa-0428-4705-a601-dbeae530da18",
+      "status": "budget_exceeded"
+    },
+    "minimal-anatomy.png": {
+      "note": "Anatomy board: Agent loop and Tools & sandbox enabled, five cards off",
+      "run": "d13b50fa-0428-4705-a601-dbeae530da18",
+      "status": "budget_exceeded"
+    },
+    "minimal-phones.png": {
+      "note": "Sandbox and production phones; production banner: Original build. No change applied.",
+      "run": "d13b50fa-0428-4705-a601-dbeae530da18",
+      "status": "budget_exceeded"
+    },
+    "fixture-backup-production.png": {
+      "note": "Production phone (original build) on the Backup screen of the starting app",
+      "run": "d13b50fa-0428-4705-a601-dbeae530da18",
+      "status": "budget_exceeded"
+    },
+    "minimal-verification.png": {
+      "note": "Verification card after presenter evaluation: visible and held-out tiers",
+      "run": "d13b50fa-0428-4705-a601-dbeae530da18",
+      "status": "budget_exceeded"
+    },
+    "minimal-explain.png": {
+      "note": "Explain & compare opened on the Minimal run",
+      "run": "d13b50fa-0428-4705-a601-dbeae530da18",
+      "status": "budget_exceeded"
+    },
+    "verification-status.png": {
+      "note": "Run header: Custom harness (+Verification), Completed, 10 model calls",
+      "run": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed"
+    },
+    "verification-anatomy.png": {
+      "note": "Anatomy board: Agent loop, Tools & sandbox and Verification enabled",
+      "run": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed"
+    },
+    "verification-phones.png": {
+      "note": "Production banner: Updated automatically by the agent. No review.",
+      "run": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed"
+    },
+    "verification-production-draft-after-switch.png": {
+      "note": "Presenter typed a draft on production, switched to My notes and back",
+      "run": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed"
+    },
+    "verification-production-backup.png": {
+      "note": "Backup screen on production while an unsaved presenter draft exists",
+      "run": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed"
+    },
+    "verification-production-literal.png": {
+      "note": "Presenter typed markup into the draft on production and switched screens",
+      "run": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed"
+    },
+    "verification-verification.png": {
+      "note": "Verification card after presenter evaluation",
+      "run": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed"
+    },
+    "verification-claims.png": {
+      "note": "What it claimed, what was observed",
+      "run": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed"
+    },
+    "verification-activity-run-checks.png": {
+      "note": "Activity list scrolled to the first run_checks call by the agent",
+      "run": "d017cd57-14e5-41bb-8b31-277d047a8694",
+      "status": "completed"
+    },
+    "engineered-status.png": {
+      "note": "Run header: Engineered harness, Completed, 13 model calls",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-anatomy.png": {
+      "note": "Anatomy board: seven cards enabled, Guardrails approved & applied",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-phones.png": {
+      "note": "Production banner: Updated after your approval.",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-verification.png": {
+      "note": "Verification card: 6/6 visible and 5/5 held-out after presenter evaluation",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-visible-checks.png": {
+      "note": "Checks the agent can run",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-heldout-checks.png": {
+      "note": "Held-out checks (presenter only)",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-activity-approval.png": {
+      "note": "Activity list: awaiting approval, presenter evaluation, patch applied",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-claims.png": {
+      "note": "What it claimed, what was observed",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-diff.png": {
+      "note": "Reviewed diff: src/storage.js only",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-diff-file.png": {
+      "note": "Reviewed diff of src/storage.js: before and after panels",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-diff-after.png": {
+      "note": "Reviewed diff: the AFTER panel of src/storage.js, clipped to the dialog",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-explain.png": {
+      "note": "Explain & compare: Minimal versus Engineered, same draft task and model",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-comparison-table.png": {
+      "note": "Comparison table including the held-out row",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "inputs-top.png": {
+      "note": "What each agent was told: top of both columns",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "inputs-ticket.png": {
+      "note": "What each agent was told: Engineered column scrolled to the PN-142 ticket thread",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "inputs-minimal-column.png": {
+      "note": "What the Minimal agent was told (whole column)",
+      "run": "d13b50fa-0428-4705-a601-dbeae530da18",
+      "status": "budget_exceeded"
+    },
+    "inputs-engineered-column-ticket.png": {
+      "note": "What the Engineered agent was told, scrolled to the PN-142 ticket thread",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-context-evidence-top.png": {
+      "note": "Context management evidence: repository map and revision",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-context-evidence-ticket.png": {
+      "note": "Context management evidence scrolled to the PN-142 ticket thread",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-instructions-evidence.png": {
+      "note": "Instructions & policies evidence: the project rules sent",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "engineered-focus.png": {
+      "note": "Focus demo layout at 1440x900 with both phones",
+      "run": "5794a37d-76c6-44af-b2b4-fc45fe4c4b45",
+      "status": "completed"
+    },
+    "reset-memory-status.png": {
+      "note": "Run header: session 2 after a forced reset, Budget reached",
+      "run": "b4feef72-e6e6-4c12-94db-de71f35c3a4c",
+      "status": "budget_exceeded"
+    },
+    "reset-memory-activity.png": {
+      "note": "Activity list from the forced reset event onward (+Memory run)",
+      "run": "b4feef72-e6e6-4c12-94db-de71f35c3a4c",
+      "status": "budget_exceeded"
+    },
+    "reset-memory-handoff.png": {
+      "note": "Memory tab: saved note and the frozen handoff supplied to session 2",
+      "run": "b4feef72-e6e6-4c12-94db-de71f35c3a4c",
+      "status": "budget_exceeded"
+    },
+    "reset-memory-handoff-session2.png": {
+      "note": "Memory tab scrolled to the frozen handoff supplied to session 2",
+      "run": "b4feef72-e6e6-4c12-94db-de71f35c3a4c",
+      "status": "budget_exceeded"
+    },
+    "reset-memory-event.png": {
+      "note": "The recorded reset event",
+      "run": "b4feef72-e6e6-4c12-94db-de71f35c3a4c",
+      "status": "budget_exceeded"
+    },
+    "reset-verification-activity.png": {
+      "note": "Activity list from the forced reset event onward (+Verification run, no handoff)",
+      "run": "b1f14631-0271-42a8-bd69-3a706ce94b0f",
+      "status": "budget_exceeded"
+    },
+    "reset-verification-memory.png": {
+      "note": "Memory tab of the run without Memory: no handoff",
+      "run": "b1f14631-0271-42a8-bd69-3a706ce94b0f",
+      "status": "budget_exceeded"
+    },
+    "ladder-draft.png": {
+      "note": "Ladder scoreboard for cohere/north-mini-code:free · The disappearing draft · Harness v4 · no forced reset",
+      "run": null,
+      "status": null
+    },
+    "ladder-draft-reset8.png": {
+      "note": "Ladder scoreboard for cohere/north-mini-code:free · The disappearing draft · Harness v4 · reset after call 8",
+      "run": null,
+      "status": null
+    },
+    "ladder-unicode.png": {
+      "note": "Ladder scoreboard for cohere/north-mini-code:free · Unicode & multiline · Harness v4 · no forced reset",
+      "run": null,
+      "status": null
+    },
+    "ladder-longform.png": {
+      "note": "Ladder scoreboard for cohere/north-mini-code:free · Long-form writing · Harness v4 · no forced reset",
+      "run": null,
+      "status": null
+    },
+    "eval-summary.png": {
+      "note": "Runs & evals summary tiles",
+      "run": null,
+      "status": null
+    }
+  },
+  "ladderFilters": {
+    "ladder-draft.png": "cohere/north-mini-code:free · The disappearing draft · Harness v4 · no forced reset",
+    "ladder-draft-reset8.png": "cohere/north-mini-code:free · The disappearing draft · Harness v4 · reset after call 8",
+    "ladder-unicode.png": "cohere/north-mini-code:free · Unicode & multiline · Harness v4 · no forced reset",
+    "ladder-longform.png": "cohere/north-mini-code:free · Long-form writing · Harness v4 · no forced reset"
+  }
+}
