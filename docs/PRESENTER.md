@@ -1,4 +1,4 @@
-# One-hour presenter runbook
+> **Note (28 October 2026).** This is the dashboard's failure-first flow, kept as a secondary demo. The current presentation lesson is the step-by-step harness builder: see [the builder design](BUILDER.md) and [the video cue card](BUILDER-CUE-CARD.md).
 
 For the live segment, keep [the twenty-minute cue card](DEMO-CUE-CARD.md) open. It maps each screen action to a plain-language sentence and the concept it shows. [ANATOMY-DEMO.md](../ANATOMY-DEMO.md) has the same flow in more detail.
 
@@ -62,7 +62,7 @@ The first live v4 ladder is in [the v4 live report](../live-validation/v4/RESULT
 
 ## Fallback
 
-If the provider fails, use a ready workspace with no model call: show the bug, the Backup screen and both check tiers through Evaluate outcome. On the unfixed app the automated tests observe 4/6 visible and 3/5 held-out. The deck's screenshots are historical v2 and v3 evidence with a different fixture and one check tier. Label them as such. Do not present them as v4 runs or as a live replay.
+If the provider fails, use a ready workspace with no model call: show the bug, the Backup screen and both check tiers through Evaluate outcome. On the unfixed app the automated tests observe 4/6 visible and 3/5 held-out. The deck's demo slides (21 to 32) show recorded v4 runs and the appendix keeps the v2 and v3 slides; label them as recorded. The recorded builder video (see [the video cue card](BUILDER-CUE-CARD.md)) is the fallback for the build-up flow. Never present a recording as live.
 
 ## Close
 

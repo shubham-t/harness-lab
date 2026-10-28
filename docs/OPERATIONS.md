@@ -19,7 +19,7 @@ The app also tries installed Microsoft Edge if bundled Chromium is unavailable. 
 
 In **Connect a model**, enter the provider's base URL, protocol, exact model ID and key. **Save connection** stores the key in process memory. **Save & test** makes a real provider request. A successful connection test verifies access, not bug-fixing capability.
 
-The verified live configuration was OpenRouter, base URL `https://openrouter.ai/api/v1`, Chat Completions, model `nvidia/nemotron-3.5-super-vl:free`. Availability, quota and response times can change. Use the exact model supported by your account. Internal models need compatible tool-calling behavior; an arbitrary chat endpoint is insufficient.
+The configuration used for the v4 ladder, the builder recordings and the video (26 and 27 October 2026) was OpenRouter, base URL `https://openrouter.ai/api/v1`, Chat Completions, model `cohere/north-mini-code:free`, with `MODEL_MIN_INTERVAL_MS=4500` for its limit of 15 requests per minute; the v2 rehearsals used `nvidia/nemotron-3.5-super-vl:free`. Availability, quota and response times change. Use the exact model supported by your account. Internal models need compatible tool-calling behavior; an arbitrary chat endpoint is insufficient (see [the next-machine prompt](NEXT-MACHINE-PROMPT.md)).
 
 Alternatively copy `.env.example` to `.env` and fill values locally. Never commit or share `.env`. UI-entered keys vanish on restart. Provider settings are pinned when a run starts; restore those settings before resuming an older run.
 

@@ -1,4 +1,4 @@
-# Presenting the v4 demo: failure first
+> **Note (28 October 2026).** This is the dashboard's failure-first flow, kept as a secondary demo. The current presentation lesson is the step-by-step harness builder: see [the builder design](docs/BUILDER.md) and [the video cue card](docs/BUILDER-CUE-CARD.md).
 
 Open http://127.0.0.1:4318 and create **fresh** workspaces for this comparison. Runs from harness versions 1 to 3 show their own labels and keep their original behavior. Use **Focus demo** for the presentation layout. Use the same model and scenario for every run you compare.
 

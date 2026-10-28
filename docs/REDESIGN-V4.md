@@ -1,6 +1,6 @@
 # Harness Lab v4 redesign specification
 
-Status: build contract for the v4 redesign. Written 26 October 2026. This document is the shared contract for the three work packages below. Read [AGENTS.md](../AGENTS.md), [ARCHITECTURE.md](ARCHITECTURE.md) and [TESTING.md](TESTING.md) first; they still apply unless this document says otherwise.
+Status: historical build contract for the v4 redesign, written 26 October 2026 and implemented the same day. Where it says live v4 evidence is pending, that evidence now exists in `live-validation/v4/`. The step-by-step builder in [BUILDER.md](BUILDER.md) was added on 27 October 2026 and is now the presentation lesson; the dashboard flow this document describes is kept as a secondary demo. This document is the shared contract for the three work packages below. Read [AGENTS.md](../AGENTS.md), [ARCHITECTURE.md](ARCHITECTURE.md) and [TESTING.md](TESTING.md) first; they still apply unless this document says otherwise.
 
 ## Why v4 exists
 

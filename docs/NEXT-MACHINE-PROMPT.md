@@ -1,74 +1,80 @@
-# Prompt for the agent on the next machine
+# Prompt for the agent on the organization laptop
 
-Copy everything below the line into the coding agent on the new machine. It gathers context from the repository, sets the project up, verifies it without a model, and then, only when the owner says so, tests it with a real model. Written 27 October 2026 against commit history on branch `v4-redesign`.
+Copy everything below the line into the coding agent on the work laptop. It gathers context from the repository, sets the project up with the internal model API, verifies it without a model, and then, only when the owner says so, runs the builder page live. Written 28 October 2026 against branch `harness-builder`.
 
 ---
 
-You are setting up and verifying **Harness Lab**, a local teaching application about agent harness engineering, on this machine. The repository is `https://github.com/shubham-t/harness-lab` (private; use my existing GitHub authentication, `gh auth status` should show account `shubham-t`). Work on branch **`v4-redesign`**, which holds the current state; `main` is the older v3 baseline kept for history. Do not merge, rebase or force-push anything.
+You are setting up **Harness Lab**, a local teaching application about agent harness engineering, on this machine, and preparing it for a presentation. The repository is `https://github.com/shubham-t/harness-lab` (private; `gh auth status` should show account `shubham-t`). Work on branch **`harness-builder`**, which holds the current state; `v4-redesign` is the default branch with the earlier v4 work and `main` is an older baseline. Do not merge, rebase or force-push anything. Never modify any other checkout of this project you may find on this machine.
 
 ## 1. Gather context before changing anything
 
 Read these files in this order and do not skip any:
 
-1. `AGENTS.md`: project rules and the fifteen design invariants. They override your defaults.
-2. `docs/PROJECT-STATUS.md`: the exact current state, what was tested, what live evidence exists, what is established and what is still open. Treat it as authoritative over any other document that disagrees.
-3. `docs/HANDOFF.md`: machine setup steps and the live-test procedure.
-4. `docs/REDESIGN-V4.md`: the v4 design contract and the implementation notes with exact field names.
-5. `ANATOMY-DEMO.md` and `docs/DEMO-CUE-CARD.md`: the failure-first presentation flow.
-6. `live-validation/v4/RESULTS.md`: the first live ladder, 20 real runs, with every failure kept.
-7. `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `docs/OPERATIONS.md`, `README.md`.
+1. `AGENTS.md`: the project rules and the design invariants. They override your defaults.
+2. `docs/PROJECT-STATUS.md`: the authoritative record of what exists, what was tested, what live evidence established and what is open. It wins over any other document that disagrees.
+3. `docs/BUILDER.md`: the design of the current presentation, **the harness builder**: a page that shows how a harness is built one component at a time, with real recorded runs and a live mode. Read all work packages (A to E).
+4. `docs/BUILDER-CUE-CARD.md`: how the presenter walks through the recorded video or the live page.
+5. `live-validation/builder/RESULTS.md`: the recorded runs behind the page, including the three superseded step 6 pairs and why they were re-recorded.
+6. `README.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `docs/OPERATIONS.md`: how the app, checks, tests, ports and the recorder work.
+7. `presentation/README.md`: the deck (not yet rebuilt around the builder), the video recorder and the trimmer.
+8. `ANATOMY-DEMO.md` and `docs/DEMO-CUE-CARD.md`: the dashboard's older failure-first flow, kept as a secondary demo.
 
-Then give me a short summary in your own words of: what the demo is trying to show, what Minimal and Engineered are, what the visible and held-out check tiers are, what the live ladder established, and the open items listed in PROJECT-STATUS. If your summary disagrees with the documents, say so instead of smoothing it over.
+Then give me a short summary in your own words of: what the builder page shows and why the lesson changed from "Minimal versus Engineered" to "build a harness step by step"; what each of the eight steps proves; what the recorded runs established and did not; and the open items in PROJECT-STATUS. If your summary disagrees with the documents, say so instead of smoothing it over.
 
-## 2. Set the project up
+## 2. Set the project up (no model needed)
 
-- Node.js 22 or newer is required; Node 24.19 was tested. Run `npm ci`, then `npx playwright install chromium`. On Windows use `npm.cmd` and `npx.cmd` if PowerShell blocks scripts. Corporate proxy or certificate policy: explain the exact blocker and use approved configuration; never disable TLS verification.
+- Node.js 22 or newer is required; Node 24.19 was tested. Run `npm ci`, then `npx playwright install chromium`. On Windows use `npm.cmd` and `npx.cmd` if PowerShell blocks scripts. If a corporate proxy or certificate policy blocks the install, explain the exact blocker and use the approved configuration; never disable TLS verification. If Chromium cannot be installed, the app also tries an installed Microsoft Edge.
 - Copy `.env.example` to `.env`. Set `HARNESS_DATA_DIR` to the absolute path of this checkout's `.data` directory. Leave the key empty for now. Keep ports 4318 and 4319 unless occupied; never stop unrelated processes. Never print, paste or commit `.env`.
-- Run `npm run doctor` (18 checks expected) and `npm test` (136 tests expected, about three minutes, one test command at a time; the test files reserve fixed ports and launch real Chromium). Report the exact counts. If anything fails, investigate rather than retrying until green, and report it.
-- Start the app with `npm start` and open `http://127.0.0.1:4318`. Using a real browser, confirm: the SANDBOX and PRODUCTION phones with the banner "Original build. No change applied."; the draft bug (type a draft, switch to My notes and back, it is gone); the Backup tab in the phone; **Run browser checks without a key**, which on the unfixed fixture must report 4/6 visible and 3/5 held-out; **Explain & compare** with the held-out row and the "What each agent was told" section; **Runs & evals** with the ladder table showing empty cells; the **New workspace** dialog with the optional "Forced session reset" field; and **Focus demo** (press F) with both phones visible. Also open `http://127.0.0.1:4318/builder.html`, the step-by-step harness builder: walk all eight steps with the arrow keys; the phones show recorded screenshots because the recorded runs are not on this machine. Take screenshots and keep them outside the repository.
+- Run `npm run doctor` (18 checks expected) and `npm test` (201 tests expected, about four to five minutes, one test command at a time; the test files reserve fixed ports and launch real Chromium). Report the exact counts. If anything fails, investigate rather than retrying until green.
+- Start the app with `npm start` and open `http://127.0.0.1:4318`. In a real browser confirm the dashboard: both phones with the banner "Original build. No change applied.", the draft bug (type a draft, switch to My notes and back, it is gone), **Run browser checks without a key** reporting 4/6 visible and 3/5 held-out on the unfixed app, and Focus demo.
+- Open `http://127.0.0.1:4318/builder.html`. Walk all eight steps with the arrow keys. Every step must show its recorded run; the phones show recorded screenshots here because those runs are not on this machine. The "Run this step live" buttons are hidden until a model is connected; a note says so.
+- Download the recorded videos: they are too large for Git and are published as release assets. From the repository root run `gh release download builder-video-2026-10-27 --dir presentation/video --pattern "*.webm"`. Expect `harness-builder-live.webm` (the untouched original, 23:26), `harness-builder-live.trimmed.webm` (13:05, idle waiting cut) and `harness-builder-live.take1.webm` (an earlier full take kept as a backup). The matching `.notes.txt` and `.trim.json` files are already in the checkout. Open the trimmed video once and confirm it plays (any browser or VLC plays WebM).
 
-Everything in this section works without a model key. Finish it completely before asking me for credentials.
+Finish everything in this section before asking me for credentials.
 
-## 3. Live testing, only when I authorize it
+## 3. Connect the internal model (only when I authorize it)
 
-Ask me for the provider details and have me put them in `.env` myself (`OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`, `LLM_PROTOCOL`). For OpenRouter use `https://openrouter.ai/api/v1` and `chat-completions`. Free OpenRouter models are rate limited; `cohere/north-mini-code:free` allows 15 requests per minute, so set `MODEL_MIN_INTERVAL_MS=4500`. `poolside/laguna-s-2.1:free` returned HTTP 429 repeatedly and spent most of its budget on reasoning tokens; avoid it. A paid model with tool calling is better for repeated trials. Restart with `npm start` after editing `.env` and confirm `/api/state` reports the provider as configured; run Save & test once.
+The laptop uses the organization's internal LLM API instead of OpenRouter. Ask me for the details and have me put them in `.env` myself; never ask me to paste a key into chat.
 
-Then run, from the repository root:
+- `OPENAI_BASE_URL`: the internal endpoint's base URL (HTTPS; HTTP is accepted only on a loopback address). The adapter appends `/chat/completions` or `/responses` to it.
+- `LLM_PROTOCOL`: `chat-completions` for an OpenAI-compatible Chat Completions endpoint, or `responses` for the Responses protocol. The adapter needs real tool calling (function calls with `tool_calls` or `function_call` items). An endpoint that only returns chat text cannot run the agent.
+- `OPENAI_MODEL`: the exact model id.
+- `OPENAI_API_KEY`: the key (set by me). It is sent as a Bearer token.
+- `MODEL_MIN_INTERVAL_MS` and `MODEL_RETRY_429`: leave at 0 and 3 unless the endpoint rate-limits; OpenRouter's free tier needed 4500 ms.
 
-```
-node scripts/evaluate.mjs --ladder --trials 1 --scenarios draft,unicode,longform --out live-validation/<machine-name>/ladder.json
-```
+If the internal API needs other headers, paths or a request shape the two adapters in `lib/provider.mjs` do not produce, write a small adapter there, keep it behind the same `callModel` interface, cover it with a transport unit test in `tests/provider.test.mjs` (mocked HTTP, no live call), and say exactly what differs. The OpenRouter-specific reasoning handling applies only when the host is `openrouter.ai`. Keys never appear in events, exports or logs; keep it that way.
 
-This makes 15 real, billable runs, about 50 minutes with pacing. The five rungs are Minimal, +Verification, +Instructions & context, +Memory and Engineered, each with the same task, files, tools and budgets. After each run the script runs the presenter evaluation, both check tiers. Engineered runs stop at the approval boundary: open each one in the dashboard, read the diff (the correct fix changes only `src/storage.js` and adds a separate `prefix + 'draft'` key without touching the notes key or seed notes), and approve only if it is sound. Optionally run the forced-reset ladder: `--scenarios draft --reset-after 8`.
+Restart with `npm start` after editing `.env`, confirm `/api/state` reports the provider as configured, then run **Save & test** in the dashboard once (one real request).
 
-Record the outcome the way `live-validation/v4/RESULTS.md` does: model, endpoint, date, machine, every run including failures, approvals, and what the numbers do and do not establish. Export each run from the dashboard or `GET /api/runs/<id>/export` into `live-validation/<machine-name>/runs/`. Keys never appear in exports; check anyway with a search for your key prefix before committing.
+## 4. Rehearse live (only when I authorize it; real, billable calls)
 
-## 4. What is already established, and what is not
+- Create one fresh Engineered workspace in the dashboard and run it, to see the internal model's behavior and timing on this task. Note calls, elapsed time and whether it reaches the approval boundary.
+- Open `/builder.html` and press **Run this step live** on each step in order. Each step is a fresh run with that step's configuration; steps 1 to 4 run to the shared 24-call budget if the model never asks to finish. Step 7 stops at the approval boundary: open the diff, read it (the correct fix changes only `src/storage.js` and adds a separate `prefix + 'draft'` key without touching the notes key), then approve on the page. Note every run id.
+- If I want a new video with the internal model: `node presentation/record-builder-video.mjs --pause 8` records all eight steps live in one continuous file (a one-second title card per step; it retries a step after a provider failure and approves step 7 only after the same diff review), then `node presentation/trim-video.mjs` writes the trimmed copy. Both leave the original untouched. With a full ffmpeg on PATH the trim is exact; without one, headless Chromium replays the kept parts. Do not install software without asking me.
+- Record the outcome the way `live-validation/builder/RESULTS.md` does, in a new folder `live-validation/builder-<machine>/`, keeping failures, provider errors and budget stops separate from source correctness. Export runs from the dashboard or `GET /api/runs/<id>/export`. Never pool runs from different models into one number.
 
-Established on the development laptop on 26 October 2026 (details in PROJECT-STATUS and the v4 report):
+## 5. What is established, and what is not
 
-- The v4 runtime, dashboard and evaluation script work end to end with a real provider. 136 automated tests pass.
-- With `cohere/north-mini-code:free`, every Minimal run produced a patch that passed all 6 visible and all 5 held-out checks and never requested completion within the 24-call budget, because it spent its calls on manual browser testing. Every rung with the `run_checks` tool completed in 7 to 13 calls. Engineered waited for approval every time.
-- Held-out checks passed on every applied patch. Publication revisions matched the measured revisions.
-- A forced reset restored a handoff when memory was on; completion still did not happen in that single trial.
+Established on the development laptop (27 October 2026, `cohere/north-mini-code:free`, one run per step; details in PROJECT-STATUS and the builder report):
+
+- The builder page, live mode, the recorder and the trimmer work end to end with a real provider. 201 automated tests pass.
+- A model alone and a loop without tools only produce text. With tools, rules and context this model wrote a correct fix every time (6/6 visible, 5/5 held-out) and never declared completion; with the check tool it completed and published itself; with approval it stopped and waited.
+- With the reset after the first edit, both step 6 runs were cut off at the same point and neither finished; the handoff carried the edited file and did not make the model stop.
 
 Not established, and to be stated as such in anything you write:
 
-- Any reliability percentage. There is one trial per cell with one free model.
-- That the traps (backup leaking a draft, lost user notes, HTML interpreted, test ids dropped) are tripped by a model: this model tripped none of them. They are measured, not demonstrated.
-- Whether the 24-call budget is fair to Minimal on the v4 fixture. It is equal for every rung, and Minimal chose manual testing, but a presenter should say so plainly rather than imply Minimal cannot fix the bug.
-- The HTTP 429 retry path has unit tests and never fired in a live run after pacing was enabled.
-- The workshop deck was rebuilt for v4 on 27 October 2026 with screenshots of the recorded ladder (see presentation/README.md). It has not been shown on the presentation projector or rehearsed against the clock.
-- Behavior with a paid model, with a second model, on macOS, behind a corporate proxy, or on the presentation projector.
+- Any reliability rate. One run per step, one free model.
+- Whether the rules or the context would change the outcome on a harder task, or with the internal model.
+- Whether the internal model's behavior, timing and tool calling match. That is what section 4 measures.
+- The deck (`presentation/Agent-Harness-Workshop.pptx`) is still the earlier v4 deck; it has not been rebuilt around the builder. Say so if asked, and do not rebuild it unless I ask.
 
-## 5. Rules
+## 6. Rules
 
-- Keep all execution real. Never prewrite a repair, script a model answer outside tests, weaken a check, change budgets to favor a preset, or describe a screenshot as live.
-- Never pool v4 evidence with v2 or v3, or results from different models, into one number.
-- Record failures, provider errors and budget stops separately from source correctness.
-- Do not commit `.env`, `.data`, logs or anything with a key. Commit on a branch named after this machine, for example `setup/<machine-name>`, and tell me before pushing.
-- Update `docs/PROJECT-STATUS.md` with this machine's operating system, Node version, tested commit, test counts, the dashboard checks you performed, any live runs with their IDs, blockers, and exact start, stop and restart commands.
+- Keep all execution real. Never prewrite a repair, script a model answer outside tests, weaken a check, shorten a budget to favor a step, or describe a recording as live.
+- Keep budgets equal for every run. Record failures separately from source correctness.
+- Do not commit `.env`, `.data`, logs, videos or anything with a key. Commit on a branch named after this machine, for example `setup/<machine-name>`, and tell me before pushing.
+- Update `docs/PROJECT-STATUS.md` with this machine's operating system, Node version, tested commit, test counts, what you verified in the browser, any live runs with their ids, blockers, and exact start, stop and restart commands.
 
-## 6. Completion report
+## 7. Completion report
 
-Give me: the checkout path and branch, dashboard URL, start/stop/restart commands, doctor and test counts, what you verified in the browser, any live-run outcomes with run IDs, every blocker or deviation, and a short rehearsal sequence from `docs/DEMO-CUE-CARD.md` tailored to what actually works on this machine.
+Give me: the checkout path and branch, the dashboard and builder URLs, start, stop and restart commands, doctor and test counts, what you verified in the browser, whether the videos play, any live-run outcomes with run ids, every blocker or deviation, and a short rehearsal sequence from `docs/BUILDER-CUE-CARD.md` adjusted to what actually works on this machine.

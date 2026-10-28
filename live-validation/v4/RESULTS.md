@@ -113,3 +113,4 @@ For all applied publications, automatic and approved, the publication manifest r
 - `laguna-s-2.1-attempt.json` and `.log`: the abandoned first model.
 - `free-model-catalog.json`: the OpenRouter catalog snapshot used to choose the models.
 - `runs/`: a full exported trace per run, named by preset, features, scenario, model and run id. API keys never appear in exports.
+- The `.log` files named above exist only on the laptop that ran the ladder: `*.log` is ignored by Git, so a fresh clone has the JSON summaries and the exported traces, not the console logs.

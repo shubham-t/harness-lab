@@ -1,4 +1,4 @@
-# Twenty-minute demo cue card (v4)
+> **Note (28 October 2026).** This is the dashboard's failure-first flow, kept as a secondary demo. The current presentation lesson is the step-by-step harness builder: see [the builder design](BUILDER.md) and [the video cue card](BUILDER-CUE-CARD.md).
 
 Keep the story to one bug: **a draft disappears when the user changes screens or refreshes**. Use the same model and the Draft scenario for every run. Create fresh workspaces; they use harness version 4. The full flow with more detail is in [ANATOMY-DEMO.md](../ANATOMY-DEMO.md).
 
